@@ -1,50 +1,58 @@
 import { useEffect, useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
+import Navbar from "./components/Navbar";
 import Dashboard from "./pages/Dashboard";
+import Home from "./pages/Home";
+import ProtectedRoute from "./components/ProtectedRoute";
+import AuthCallback from "./pages/AuthCallback";
+
+type ThemeMode = "light" | "dark";
+
+const getInitialTheme = (): ThemeMode => {
+  const stored = localStorage.getItem("theme");
+  return stored === "dark" || stored === "light" ? stored : "light";
+};
 
 const App = () => {
-  const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
 
   useEffect(() => {
-    // Add or remove dark mode class on <html> tag
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    // Store user preference in localStorage
+    document.documentElement.classList.toggle("dark", theme === "dark");
     localStorage.setItem("theme", theme);
   }, [theme]);
-const handleLogin = () => {
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  const handleLogin = () => {
     window.location.href = "http://localhost:4000/auth/google";
   };
-  const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark");
-  };
+
   return (
-    <>
-    <div className="flex items-center justify-center h-screen bg-background-deep">
-      <button
-        onClick={toggleTheme}
-        className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700"
-      >
-        {theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      </button>
-      <button onClick={handleLogin}>Login with Google</button>;
-      <h1 className="text-4xl font-bold text-text-primary font-heading">
-        Hello,{" "}
-      </h1>
-      <h1 className="text-4xl dark:text-primary text-text-secondary font-body">
-        {" "}
-        Tailwind CSS with Vite!
-      </h1>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <Navbar
+        theme={theme}
+        toggleTheme={toggleTheme}
+        handleLogin={handleLogin}
+      />
+
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </div>
-    <Routes>
-      <Route path="/dashboard" element={<Dashboard />} />
-    </Routes>
-
-    </>
-
   );
 };
 

@@ -46,4 +46,36 @@ router.get("/files/:userId", async (req, res) => {
   }
 });
 
+router.get("/profile/:userId", async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    console.log("userId:", req.params.userId);  
+    if (!user) return res.status(404).send("User not found");
+
+    const auth = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      "/auth/google/callback"
+    );
+
+    auth.setCredentials({
+      access_token: user.accessToken,
+    });
+
+    const oauth2 = google.oauth2({ version: "v2", auth });
+
+    const profileResponse = await oauth2.userinfo.get();
+    const profile = profileResponse.data;
+
+    res.json({
+      id: profile.id,
+      email: profile.email,
+      name: profile.name,
+      picture: profile.picture,
+    });
+  } catch (err: any) {
+    console.error("Error fetching profile:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 export default router;

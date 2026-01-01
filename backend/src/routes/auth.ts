@@ -1,6 +1,7 @@
 import express from "express";
 import passport from "passport";
 
+
 const router = express.Router();
 
 router.get(
@@ -14,7 +15,7 @@ router.get(
   async (req: any, res) => {
     // Save user ID to frontend (can use JWT or session)
     const userId = req.user._id;
-    res.redirect(`http://localhost:5173/dashboard?userId=${userId}`);
+    res.redirect(`http://localhost:5173/auth/callback?userId=${userId}`);
   }
 );
 
