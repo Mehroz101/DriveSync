@@ -1,4 +1,4 @@
-import type { DriveFile } from "../types/drive.types";
+import type { DriveFile, DriveAccount } from "../types/drive.types";
 import { apiClient } from "./axios.client";
 
 export const fetchDriveFiles = async (
@@ -7,5 +7,53 @@ export const fetchDriveFiles = async (
   const { data } = await apiClient.get(
     `/api/drive/files/${userId}`
   );
+  return data.files;
+};
+
+// API functions for managing drive accounts
+export const fetchDriveAccounts = async (
+  userId: string
+): Promise<DriveAccount[]> => {
+  const { data } = await apiClient.get(
+    `/api/drive/accounts/${userId}`
+  );
+  return data.accounts;
+};
+
+export const addDriveAccount = async (
+  userId: string
+): Promise<{ authUrl: string }> => {
+  const { data } = await apiClient.post(
+    `/api/drive/accounts/${userId}`
+  );
   return data;
+};
+
+export const removeDriveAccount = async (
+  accountId: string
+): Promise<{ message: string }> => {
+  const { data } = await apiClient.delete(
+    `/api/drive/accounts/${accountId}`
+  );
+  return data;
+};
+
+export const syncDriveFiles = async (
+  userId: string
+): Promise<{ message: string; totalFilesSynced: number; accountsSynced: number }> => {
+  const { data } = await apiClient.post(
+    `/api/drive/sync/${userId}`
+  );
+  return data;
+};
+
+// Search API
+export const searchDriveFiles = async (
+  userId: string,
+  query: string
+): Promise<DriveFile[]> => {
+  const { data } = await apiClient.get(
+    `/api/search/${userId}?query=${encodeURIComponent(query)}`
+  );
+  return data.results;
 };

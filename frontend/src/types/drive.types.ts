@@ -9,4 +9,57 @@ export interface DriveFile {
   size?: number;
   shared?: boolean;
   starred?: boolean;
+  driveAccountName?: string;
+  driveAccountEmail?: string;
+}
+
+export interface DriveAccount {
+  _id: string;
+  name: string;
+  email: string;
+  connectionStatus: 'connected' | 'disconnected' | 'error';
+  scopes: string[];
+  lastSync?: string;
+  lastFetched?: string;
+  createdAt: string;
+  updatedAt: string;
+  driveAccountEmail?: string;
+}
+
+export interface DriveAccount {
+  _id: string;
+  name: string;
+  email: string;
+  connectionStatus: 'connected' | 'disconnected' | 'error';
+  scopes: string[];
+  lastSync?: string;
+  lastFetched?: string;
+  createdAt: string;
+  updatedAt: string;
+  driveAccountEmail?: string;
+}
+
+export interface DriveAccount {
+  _id: string;
+  name: string;
+  email: string;
+  connectionStatus: 'connected' | 'disconnected' | 'error';
+  scopes: string[];
+  lastSync?: string;
+  lastFetched?: string;
+  createdAt: string;
+  updatedAt: string;
+  driveAccountEmail?: string;
+}
+
+export interface DriveAccount {
+  _id: string;
+  name: string;
+  email: string;
+  connectionStatus: 'connected' | 'disconnected' | 'error';
+  scopes: string[];
+  lastSync?: string;
+  lastFetched?: string;
+  createdAt: string;
+  updatedAt: string;
 }
