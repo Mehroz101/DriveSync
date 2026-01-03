@@ -3,18 +3,20 @@ import { createGoogleAuthClient } from "../utils/googleAuth.js";
 import User from "../models/user.js";
 import DriveAccount from "../models/driveAccount.js";
 
-
 export const fetchDriveFiles = async (user: any) => {
   // This function will now fetch from all connected drives
   const driveAccounts = await DriveAccount.find({ userId: user._id });
-  
+
   const allFiles = [];
   for (const driveAccount of driveAccounts) {
     try {
       const files = await fetchDriveAccountFiles(driveAccount);
       allFiles.push(...files);
     } catch (error) {
-      console.error(`Error fetching files from drive account ${driveAccount._id}:`, error);
+      console.error(
+        `Error fetching files from drive account ${driveAccount._id}:`,
+        error
+      );
       continue; // Continue with other accounts
     }
   }
@@ -41,7 +43,7 @@ export const fetchDriveAccountFiles = async (driveAccount: any) => {
   } while (nextPageToken);
 
   // Process files to normalize the structure
-  return files.map(file => ({
+  return files.map((file) => ({
     id: file.id,
     name: file.name,
     mimeType: file.mimeType,
@@ -60,17 +62,21 @@ export const fetchDriveAccountFiles = async (driveAccount: any) => {
   }));
 };
 
-export const fetchUserProfile = async (user: any) => {
-  const auth = createGoogleAuthClient(user);
+export const fetchUserProfile = async (driveAccount: any) => {
+  console.log("=============Fetching user profile=============");
+  const auth = createGoogleAuthClient(driveAccount);
   const oauth2 = google.oauth2({ version: "v2", auth });
   const profileResponse = await oauth2.userinfo.get();
   const profile = profileResponse.data;
-
+  console.log(driveAccount);
   // Update profile in DB
-  await User.findByIdAndUpdate(user._id, {
-    name: profile.name,
-    picture: profile.picture,
-  });
+  await User.findOneAndUpdate(
+    { email: driveAccount.email },
+    {
+      name: profile.name,
+      picture: profile.picture,
+    }
+  );
 
   return profile;
 };
@@ -79,14 +85,14 @@ export const fetchUserProfile = async (user: any) => {
 export const searchDriveFiles = async (userId: string, query: string) => {
   // Use the File model to search across all files for this user
   const File = (await import("../models/file.js")).default;
-  
+
   const searchResults = await File.find({
     userId,
     $or: [
       { name: { $regex: query, $options: "i" } },
-      { description: { $regex: query, $options: "i" } }
-    ]
+      { description: { $regex: query, $options: "i" } },
+    ],
   }).limit(100); // Limit results
-  
+
   return searchResults;
 };

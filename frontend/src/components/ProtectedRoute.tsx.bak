@@ -11,5 +11,13 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   return (hasGoogleAuth || hasJWTAuth) ? children : <Navigate to="/" replace />;
 };
 
+export default ProtectedRoute;
+  
+  return (hasGoogleAuth || hasJWTAuth) ? children : <Navigate to="/" replace />;
+};
+
+export default ProtectedRoute;  
+  return (hasGoogleAuth || hasJWTAuth) ? children : <Navigate to="/" replace />;
+};
 
 export default ProtectedRoute;

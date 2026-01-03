@@ -3,8 +3,12 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Dashboard from "./pages/Dashboard";
 import Home from "./pages/Home";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthCallback from "./pages/AuthCallback";
+import { logout } from "./api/auth.api";
+import { clearUserSession } from "./utils/auth";
 
 type ThemeMode = "light" | "dark";
 
@@ -26,7 +30,26 @@ const App = () => {
   };
 
   const handleLogin = () => {
+    // Redirect to Google OAuth
     window.location.href = "http://localhost:4000/auth/google";
+  };
+
+  const handleLogout = async () => {
+    try {
+      // Call the backend logout endpoint
+      await logout();
+      
+      // Clear frontend session
+      clearUserSession();
+      
+      // Redirect to home page
+      window.location.href = "/";
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if backend logout fails, clear frontend session
+      clearUserSession();
+      window.location.href = "/";
+    }
   };
 
   return (
@@ -35,10 +58,13 @@ const App = () => {
         theme={theme}
         toggleTheme={toggleTheme}
         handleLogin={handleLogin}
+        handleLogout={handleLogout}
       />
 
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
 
         <Route

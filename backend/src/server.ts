@@ -4,20 +4,21 @@ dotenv.config();
 import express from "express";
 import mongoose from "mongoose";
 import passport from "./config/passport.js";
-import cookieSession from "cookie-session";
 import cors from "cors";
-import session from "express-session";
+import cookieSession from "cookie-session";
 import driveRoutes from "./routes/drive.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
-import authRoutes from "./routes/auth.js";
+import googleAuthRoutes from "./routes/auth.router.js";
+import emailAuthRoutes from "./routes/auth.routes.js";
 import searchRoutes from "./routes/search.routes.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 
 const app = express();
-console.log("CLIENT ID:", process.env.GOOGLE_CLIENT_ID);
-console.log("CLIENT SECRET:", process.env.GOOGLE_CLIENT_SECRET);
-app.use(cors({origin:true, credentials: true}));
+
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+
+// Session middleware for Google OAuth
 app.use(
   cookieSession({
     name: "session",
@@ -27,21 +28,29 @@ app.use(
     httpOnly: true,
   })
 );
+
 app.use(passport.initialize());
 app.use(passport.session());
 
-app.use("/test", (req,res)=>{
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI as string).then(() => {
+  console.log("MongoDB connected");
+}).catch(err => {
+  console.error("MongoDB connection error:", err);
+});
+
+app.use("/test", (req,res) => {
   res.send("Server is running");
 });
-app.use("/auth", authRoutes);
+// Google OAuth routes
+app.use("/auth", googleAuthRoutes);
+// Email/password authentication routes
+app.use("/api/auth", emailAuthRoutes);
 app.use("/api/drive", driveRoutes);
 app.use("/api", profileRoutes);
 app.use("/api", searchRoutes);
-
 app.use(errorHandler);
-app.listen(process.env.PORT, () =>
-  console.log(`Server running on port ${process.env.PORT}`)
+
+app.listen(process.env.PORT || 4000, () =>
+  console.log(`Server running on port ${process.env.PORT || 4000}`)
 );
-mongoose.connect(process.env.MONGO_URI as string).then(() => {
-  console.log("MongoDB connected");
-});

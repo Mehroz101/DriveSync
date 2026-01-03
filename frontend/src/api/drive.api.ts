@@ -28,7 +28,7 @@ export const addDriveAccount = async (
   );
   return data;
 };
-
+// http://localhost:5173/auth/add-drive-account?userId=6957e635bb0b94c8f3c43b24
 export const removeDriveAccount = async (
   accountId: string
 ): Promise<{ message: string }> => {

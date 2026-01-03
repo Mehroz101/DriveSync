@@ -47,11 +47,18 @@ export const getDriveFiles = async (
 
 export const getMyProfile = async (req: Request, res: Response,  next: NextFunction) => {
   try {
-    const userId = req.params.id;
+    console.log("=============getMyProfile=============")
+    const userId = req.params.userId;
+    console.log(userId)
     const user = await User.findById(userId);
+    console.log("user",user)
     if (!user) return res.status(404).json({ error: "User not found" });
-
-    const profile = await fetchUserProfile(user);
+    
+    // Get the first connected drive account for this user to fetch profile
+    const driveAccount = await DriveAccount.findOne({ userId });
+    console.log("drive",driveAccount)
+    if (!driveAccount) return res.status(404).json({ error: "No drive accounts connected" });
+    const profile = await fetchUserProfile(driveAccount);
     res.json(profile);
   } catch (err: any) {
     console.error("Error fetching profile:", err);

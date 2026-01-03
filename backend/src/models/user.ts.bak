@@ -17,4 +17,9 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
+export default mongoose.model("User", userSchema);  lastFetched: { type: Date }, // optional: track last Drive fetch
+}, {
+  timestamps: true
+});
+
 export default mongoose.model("User", userSchema);

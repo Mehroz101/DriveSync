@@ -2,6 +2,7 @@ import passport from "passport";
 import { Strategy as GoogleStrategy, Profile } from "passport-google-oauth20";
 import User from "../models/user.js";
 import DriveAccount from "../models/driveAccount.js";
+import { generateToken } from "../utils/jwt.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -33,6 +34,7 @@ passport.use(
             googleId: profile.id,
             email: profile.emails?.[0].value,
             name: profile.displayName,
+            authType: 'google',
           });
         }
 

@@ -13,6 +13,6 @@ router.delete("/accounts/:accountId", removeDriveAccount);
 router.post("/sync/:userId", syncDriveFiles);
 
 // Profile route
-router.get("/profile", getMyProfile);
+router.get("/profile/:userId", getMyProfile);
 
 export default router;

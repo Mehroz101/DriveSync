@@ -1,19 +1,27 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { isAuthenticated } from "../utils/auth";
+import { getUserId } from "../utils/auth";
+import { getAuthToken } from "../api/auth.api";
 
 interface NavbarProps {
   theme: "light" | "dark";
   toggleTheme: () => void;
   handleLogin: () => void;
+  handleLogout: () => void;
 }
 
 const Navbar: React.FC<NavbarProps> = ({
   theme,
   toggleTheme,
   handleLogin,
+  handleLogout,
 }) => {
   const location = useLocation();
+
+  // Check if user is authenticated via Google OAuth or JWT
+  const hasGoogleAuth = getUserId() !== null;
+  const hasJWTAuth = getAuthToken() !== null;
+  const isAuthenticated = hasGoogleAuth || hasJWTAuth;
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 dark:bg-gray-900/90 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 shadow-sm">
@@ -70,13 +78,28 @@ const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
             
-            {isAuthenticated() ? null : (
+            {isAuthenticated ? (
               <button
-                onClick={handleLogin}
-                className="ml-4 px-4 py-2 rounded-md text-sm font-medium bg-linear-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md"
+                onClick={handleLogout}
+                className="ml-4 px-4 py-2 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                Sign in
+                Logout
               </button>
+            ) : (
+              <div className="ml-4 flex space-x-2">
+                <button
+                  onClick={handleLogin}
+                  className="px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  Login
+                </button>
+                <Link
+                  to="/register"
+                  className="px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  Register
+                </Link>
+              </div>
             )}
           </div>
         </div>
