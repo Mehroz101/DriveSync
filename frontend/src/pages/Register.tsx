@@ -21,8 +21,8 @@ const Register: React.FC = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
       return;
     }
 
@@ -30,7 +30,9 @@ const Register: React.FC = () => {
 
     try {
       const response = await registerAPI({ email, password, name });
+      // Store JWT token only
       setAuthToken(response.token);
+      // Navigate to dashboard - user info will be fetched automatically via token
       navigate('/dashboard');
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {

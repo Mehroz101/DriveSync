@@ -3,14 +3,16 @@ import User from "../models/user.js";
 import DriveAccount from "../models/driveAccount.js";
 import File from "../models/file.js";
 import { fetchDriveFiles, fetchUserProfile, fetchDriveAccountFiles } from "../services/drive.service.js";
+import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
 
 export const getDriveFiles = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const userId = req.params.userId;
+    // Use userId from authenticated token, not from URL parameters
+    const userId = req.userId!;
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -45,10 +47,11 @@ export const getDriveFiles = async (
   }
 };
 
-export const getMyProfile = async (req: Request, res: Response,  next: NextFunction) => {
+export const getMyProfile = async (req: AuthenticatedRequest, res: Response,  next: NextFunction) => {
   try {
     console.log("=============getMyProfile=============")
-    const userId = req.params.userId;
+    // Use userId from authenticated token, not from URL parameters
+    const userId = req.userId!;
     console.log(userId)
     const user = await User.findById(userId);
     console.log("user",user)
@@ -67,9 +70,10 @@ export const getMyProfile = async (req: Request, res: Response,  next: NextFunct
 };
 
 // Get all drive accounts for a user
-export const getAllDriveAccounts = async (req: Request, res: Response, next: NextFunction) => {
+export const getAllDriveAccounts = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const userId = req.params.userId;
+    // Use userId from authenticated token
+    const userId = req.userId!;
     const driveAccounts = await DriveAccount.find({ userId });
     
     // Don't return sensitive data like tokens
@@ -91,12 +95,13 @@ export const getAllDriveAccounts = async (req: Request, res: Response, next: Nex
   }
 };
 
-// Add a new drive account (this will be handled by the auth route)
-export const addDriveAccount = async (req: Request, res: Response, next: NextFunction) => {
+// Add a new drive account (redirect to OAuth flow with authentication)
+export const addDriveAccount = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const userId = req.params.userId;
-    // This endpoint will redirect to the OAuth flow
-    const authUrl = `/auth/add-drive-account?userId=${userId}`;
+    // User must be authenticated - userId comes from token via middleware
+    // The /auth/add-drive-account route now requires authentication
+    // Return the backend auth URL that requires authentication
+    const authUrl = `http://localhost:4000/auth/add-drive-account`;
     res.json({ authUrl });
   } catch (error) {
     next(error);
@@ -104,16 +109,24 @@ export const addDriveAccount = async (req: Request, res: Response, next: NextFun
 };
 
 // Remove a drive account
-export const removeDriveAccount = async (req: Request, res: Response, next: NextFunction) => {
+export const removeDriveAccount = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const accountId = req.params.accountId;
     
-    // Remove the drive account
-    const result = await DriveAccount.findByIdAndDelete(accountId);
+    // First, verify ownership by checking if this account belongs to the authenticated user
+    const account = await DriveAccount.findById(accountId);
     
-    if (!result) {
+    if (!account) {
       return res.status(404).json({ error: "Drive account not found" });
     }
+    
+    // Verify the account belongs to the authenticated user
+    if (account.userId.toString() !== req.userId) {
+      return res.status(403).json({ error: "You do not have permission to remove this drive account" });
+    }
+    
+    // Remove the drive account
+    await DriveAccount.findByIdAndDelete(accountId);
     
     // Remove all files associated with this drive account
     await File.deleteMany({ driveAccountId: accountId });
@@ -125,9 +138,10 @@ export const removeDriveAccount = async (req: Request, res: Response, next: Next
 };
 
 // Sync files from all connected drives
-export const syncDriveFiles = async (req: Request, res: Response, next: NextFunction) => {
+export const syncDriveFiles = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const userId = req.params.userId;
+    // Use userId from authenticated token
+    const userId = req.userId!;
     const user = await User.findById(userId);
     
     if (!user) {
@@ -200,3 +214,5 @@ export const syncDriveFiles = async (req: Request, res: Response, next: NextFunc
     next(error);
   }
 };
+      
+

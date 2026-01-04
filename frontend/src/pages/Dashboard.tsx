@@ -5,35 +5,36 @@ import { useDriveAccounts, useAddDriveAccount, useSyncDriveFiles, useRemoveDrive
 import { useSearch } from "../hooks/useSearch";
 import { useDebounce } from "../hooks/useDebounce";
 import type { DriveFile, DriveAccount } from "../types/drive.types";
-import { getUserId } from "../utils/auth";
 
 const Dashboard = () => {
-  const userId = getUserId();
   const [searchQuery, setSearchQuery] = useState("");
   
   // Debounce the search query so API calls are only made after user stops typing
   const debouncedSearchQuery = useDebounce(searchQuery, 500); // 500ms delay
 
-  const { data: files, isLoading: filesLoading, isError } = useDriveFiles(userId);
-  const { data: user, isLoading: isUserLoading } = useGoogleUser(userId!);
-  const { data: driveAccounts, isLoading: accountsLoading } = useDriveAccounts(userId);
+  // No userId parameter needed - authenticated via token
+  const { data: files, isLoading: filesLoading, isError } = useDriveFiles();
+  const { data: user, isLoading: isUserLoading } = useGoogleUser();
+  const { data: driveAccounts, isLoading: accountsLoading } = useDriveAccounts();
   
   // Use the debounced query for search
-  const { data: searchResults, isLoading: searchLoading } = useSearch(userId, debouncedSearchQuery);
+  const { data: searchResults, isLoading: searchLoading } = useSearch(debouncedSearchQuery);
   
   const { mutate: addDriveAccount, isPending: addingAccount } = useAddDriveAccount();
   const { mutate: syncFiles, isPending: syncingFiles } = useSyncDriveFiles();
   const { mutate: removeDriveAccount } = useRemoveDriveAccount();
   
-  if (!userId) {
-    return (
-      <div className="p-8 text-gray-500">Please sign in to view your files</div>
-    );
+  // Check authentication status
+  if (isUserLoading || accountsLoading) {
+    return <div className="p-8 text-gray-500">Loading data…</div>;
+  }
+
+  if (isError) {
+    return <div className="p-8 text-red-500">Failed to load data</div>;
   }
 
   const handleAddDriveAccount = () => {
-    if (!userId) return;
-    addDriveAccount({ userId }, {
+    addDriveAccount(undefined, {
       onSuccess: (data) => {
         // Redirect to the auth URL to add the drive account
         window.location.href = data.authUrl;
@@ -42,17 +43,8 @@ const Dashboard = () => {
   };
 
   const handleSyncFiles = () => {
-    if (!userId) return;
-    syncFiles({ userId });
+    syncFiles();
   };
-
-  if (isUserLoading || accountsLoading) {
-    return <div className="p-8 text-gray-500">Loading data…</div>;
-  }
-
-  if (isError) {
-    return <div className="p-8 text-red-500">Failed to load data</div>;
-  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">

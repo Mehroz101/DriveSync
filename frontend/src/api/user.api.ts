@@ -1,11 +1,9 @@
 import type { GoogleUser } from "../types/user.types";
 import { apiClient } from "./axios.client";
 
-
-
-export const fetchGoogleUser = async (userId:string): Promise<GoogleUser> => {
+// Fetch Google user profile for authenticated user (no userId parameter)
+export const fetchGoogleUser = async (): Promise<GoogleUser> => {
   console.log("=============fetchGoogleUser=============");
-  console.log("fetchGoogleUser userId", userId)
-  const { data } = await apiClient.get<GoogleUser>("/api/drive/profile/" + userId);
+  const { data } = await apiClient.get<GoogleUser>("/api/drive/profile");
   return data;
 };

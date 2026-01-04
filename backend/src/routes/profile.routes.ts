@@ -1,8 +1,10 @@
 import express from "express";
 import { getProfile } from "../controllers/profile.controller.js";
+import { authenticateToken } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-router.get("/profile/:userId", getProfile);
+// Protected profile route - uses token-based authentication
+router.get("/profile", authenticateToken, getProfile);
 
 export default router;

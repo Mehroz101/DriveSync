@@ -5,12 +5,14 @@ import {
   removeDriveAccount, 
   syncDriveFiles 
 } from "../api/drive.api";
+import { isAuthenticated } from "../utils/auth";
 
-export const useDriveAccounts = (userId: string | null) => {
+// Fetch drive accounts for authenticated user (no userId parameter)
+export const useDriveAccounts = () => {
   return useQuery({
-    queryKey: ["drive-accounts", userId],
-    queryFn: () => fetchDriveAccounts(userId as string),
-    enabled: Boolean(userId),
+    queryKey: ["drive-accounts"],
+    queryFn: () => fetchDriveAccounts(),
+    enabled: isAuthenticated(),
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 2,
     gcTime: 1000 * 60 * 10,
@@ -20,7 +22,7 @@ export const useDriveAccounts = (userId: string | null) => {
 
 export const useAddDriveAccount = () => {
   return useMutation({
-    mutationFn: ({ userId }: { userId: string }) => addDriveAccount(userId),
+    mutationFn: () => addDriveAccount(),
   });
 };
 
@@ -42,11 +44,11 @@ export const useSyncDriveFiles = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ userId }: { userId: string }) => syncDriveFiles(userId),
+    mutationFn: () => syncDriveFiles(),
     onSuccess: () => {
       // Invalidate and refetch files after sync
       queryClient.invalidateQueries({ queryKey: ["drive-files"] });
       queryClient.invalidateQueries({ queryKey: ["drive-accounts"] });
     },
   });
-};
+}; 

@@ -22,6 +22,23 @@ export interface AuthResult {
 
 export const registerUser = async (userData: RegisterData): Promise<AuthResult> => {
   try {
+    // Input validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(userData.email)) {
+      return { success: false, error: 'Invalid email format' };
+    }
+
+    if (userData.password.length < 8) {
+      return { success: false, error: 'Password must be at least 8 characters long' };
+    }
+
+    if (!userData.name || userData.name.trim().length === 0) {
+      return { success: false, error: 'Name is required' };
+    }
+
+    // Sanitize name to prevent injection attacks
+    const sanitizedName = userData.name.trim().replace(/[<>]/g, '');
+
     // Check if user already exists
     const existingUser = await User.findOne({ email: userData.email });
     if (existingUser) {
@@ -36,7 +53,7 @@ export const registerUser = async (userData: RegisterData): Promise<AuthResult> 
     const newUser = new User({
       email: userData.email,
       password: hashedPassword,
-      name: userData.name,
+      name: sanitizedName,
       authType: 'email', // Differentiate from Google OAuth users
     });
 
@@ -112,4 +129,4 @@ export const getUserById = async (userId: string) => {
     console.error('Error fetching user:', error);
     return null;
   }
-};
+}

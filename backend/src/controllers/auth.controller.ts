@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { registerUser, loginUser, getUserById } from '../services/auth.service.js';
+import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -51,11 +52,10 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
   }
 };
 
-export const getProfile = async (req: Request, res: Response, next: NextFunction) => {
+export const getProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { userId } = req.params;
-    
-    const user = await getUserById(userId);
+    // Use userId from authenticated token, not from URL parameters
+    const user = await getUserById(req.userId!);
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });

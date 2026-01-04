@@ -1,34 +1,23 @@
 import type { DriveFile, DriveAccount } from "../types/drive.types";
 import { apiClient } from "./axios.client";
 
-export const fetchDriveFiles = async (
-  userId: string
-): Promise<DriveFile[]> => {
-  const { data } = await apiClient.get(
-    `/api/drive/files/${userId}`
-  );
+// Fetch drive files for authenticated user (no userId parameter needed)
+export const fetchDriveFiles = async (): Promise<DriveFile[]> => {
+  const { data } = await apiClient.get("/api/drive/files");
   return data.files;
 };
 
 // API functions for managing drive accounts
-export const fetchDriveAccounts = async (
-  userId: string
-): Promise<DriveAccount[]> => {
-  const { data } = await apiClient.get(
-    `/api/drive/accounts/${userId}`
-  );
+export const fetchDriveAccounts = async (): Promise<DriveAccount[]> => {
+  const { data } = await apiClient.get("/api/drive/accounts");
   return data.accounts;
 };
 
-export const addDriveAccount = async (
-  userId: string
-): Promise<{ authUrl: string }> => {
-  const { data } = await apiClient.post(
-    `/api/drive/accounts/${userId}`
-  );
+export const addDriveAccount = async (): Promise<{ authUrl: string }> => {
+  const { data } = await apiClient.post("/api/drive/accounts");
   return data;
 };
-// http://localhost:5173/auth/add-drive-account?userId=6957e635bb0b94c8f3c43b24
+
 export const removeDriveAccount = async (
   accountId: string
 ): Promise<{ message: string }> => {
@@ -38,22 +27,17 @@ export const removeDriveAccount = async (
   return data;
 };
 
-export const syncDriveFiles = async (
-  userId: string
-): Promise<{ message: string; totalFilesSynced: number; accountsSynced: number }> => {
-  const { data } = await apiClient.post(
-    `/api/drive/sync/${userId}`
-  );
+export const syncDriveFiles = async (): Promise<{ message: string; totalFilesSynced: number; accountsSynced: number }> => {
+  const { data } = await apiClient.post("/api/drive/sync");
   return data;
 };
 
-// Search API
+// Search API - query from query params, no userId in URL
 export const searchDriveFiles = async (
-  userId: string,
   query: string
 ): Promise<DriveFile[]> => {
   const { data } = await apiClient.get(
-    `/api/search/${userId}?query=${encodeURIComponent(query)}`
+    `/api/search?query=${encodeURIComponent(query)}`
   );
   return data.results;
 };

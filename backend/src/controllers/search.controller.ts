@@ -1,13 +1,15 @@
 import { Request, Response, NextFunction } from "express";
 import { searchDriveFiles } from "../services/drive.service.js";
+import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
 
 export const searchFiles = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const { userId } = req.params;
+    // Use userId from authenticated token
+    const userId = req.userId!;
     const { query } = req.query;
 
     if (!query || typeof query !== 'string') {

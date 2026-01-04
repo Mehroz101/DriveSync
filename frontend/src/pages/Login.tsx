@@ -19,7 +19,9 @@ const Login: React.FC = () => {
 
     try {
       const response = await loginAPI({ email, password });
+      // Store JWT token only
       setAuthToken(response.token);
+      // Navigate to dashboard - user info will be fetched automatically via token
       navigate('/dashboard');
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
@@ -150,3 +152,4 @@ const Login: React.FC = () => {
 };
 
 export default Login;
+
