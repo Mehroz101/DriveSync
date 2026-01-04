@@ -1,0 +1,45 @@
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Settings, HardDrive } from 'lucide-react';
+import { currentUser, drives } from '@/data/mockData';
+
+export function ProfileCard() {
+  const activeDrives = drives.filter(d => d.status === 'active').length;
+
+  return (
+    <div className="rounded-xl border bg-card p-6 shadow-card">
+      <div className="flex items-start gap-4">
+        <Avatar className="h-16 w-16 border-2 border-accent/20">
+          <AvatarImage src={currentUser.avatar} alt={currentUser.name} />
+          <AvatarFallback className="text-lg">
+            {currentUser.name.split(' ').map(n => n[0]).join('')}
+          </AvatarFallback>
+        </Avatar>
+        
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold truncate">{currentUser.name}</h2>
+            <Badge variant="secondary" className="bg-success/10 text-success border-0">
+              Active
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground truncate">{currentUser.email}</p>
+          
+          <div className="flex items-center gap-4 mt-4">
+            <div className="flex items-center gap-2 text-sm">
+              <HardDrive className="h-4 w-4 text-muted-foreground" />
+              <span>
+                <strong>{activeDrives}</strong> of <strong>{drives.length}</strong> drives connected
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <Button variant="ghost" size="icon">
+          <Settings className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}

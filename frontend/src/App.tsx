@@ -29,10 +29,7 @@ const App = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
-  const handleLogin = () => {
-    // Redirect to Google OAuth
-    window.location.href = "http://localhost:4000/auth/google";
-  };
+ 
 
   const handleLogout = async () => {
     try {
@@ -57,7 +54,7 @@ const App = () => {
       <Navbar
         theme={theme}
         toggleTheme={toggleTheme}
-        handleLogin={handleLogin}
+        // handleLogin={handleLogin}
         handleLogout={handleLogout}
       />
 

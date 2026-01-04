@@ -6,14 +6,14 @@ import { getAuthToken } from "../api/auth.api";
 interface NavbarProps {
   theme: "light" | "dark";
   toggleTheme: () => void;
-  handleLogin: () => void;
+  // handleLogin: () => void;
   handleLogout: () => void;
 }
 
 const Navbar: React.FC<NavbarProps> = ({
   theme,
   toggleTheme,
-  handleLogin,
+  // handleLogin,
   handleLogout,
 }) => {
   const location = useLocation();
@@ -87,12 +87,12 @@ const Navbar: React.FC<NavbarProps> = ({
               </button>
             ) : (
               <div className="ml-4 flex space-x-2">
-                <button
-                  onClick={handleLogin}
+                <Link
+                  to="/login"
                   className="px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
                 >
                   Login
-                </button>
+                </Link>
                 <Link
                   to="/register"
                   className="px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md"
