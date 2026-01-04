@@ -22,6 +22,7 @@ export function generateOAuthState(userId: string): string {
     timestamp: Date.now(),
     nonce: crypto.randomBytes(16).toString('hex'),
   };
+  console.log("inside generateOAuth",state)
 
   const stateJSON = JSON.stringify(state);
   const stateBase64 = Buffer.from(stateJSON).toString('base64');

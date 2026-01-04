@@ -25,6 +25,7 @@ import { getDrives, refreshDrive } from '@/services/api';
 import { formatBytes, formatRelativeTime, formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type { Drive } from '@/types';
+import AddDriveDialog from '@/components/dashboard/AddDriveDialog';
 
 export default function Drives() {
   const [drives, setDrives] = useState<Drive[]>([]);
@@ -63,8 +64,8 @@ export default function Drives() {
             Manage your Google Drive accounts.
           </p>
         </div>
-        
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <AddDriveDialog isAddDialogOpen={isAddDialogOpen} setIsAddDialogOpen={setIsAddDialogOpen} />
+        {/* <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2 w-full sm:w-auto">
               <Plus className="h-4 w-4" />
@@ -106,7 +107,7 @@ export default function Drives() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+        </Dialog> */}
       </div>
 
       {/* Drives Grid */}

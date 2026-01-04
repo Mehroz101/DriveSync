@@ -30,19 +30,19 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = req.body;
-
+    console.log(email,password)
     // Validate input
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
     const result = await loginUser({ email, password });
-    
+      console.log(result)
     if (result.success) {
       res.status(200).json({
         message: 'Login successful',
         token: result.token,
-        user: result.user
+        data: result.user
       });
     } else {
       res.status(401).json({ error: result.error });

@@ -3,7 +3,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  avatar?: string;
+  picture?: string;
   createdAt: string;
   status: 'active' | 'inactive';
 }

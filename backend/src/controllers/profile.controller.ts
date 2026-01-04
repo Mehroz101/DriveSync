@@ -5,24 +5,27 @@ import { fetchGoogleProfile } from "../services/profile.service.js";
 import { ApiError } from "../utils/apiError.js";
 import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
 
-export const getProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const getProfile = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     // Use userId from authenticated token
     const userId = req.userId!;
     const user = await User.findById(userId);
     if (!user) throw new ApiError(404, "User not found");
-    
     // Get the first connected drive account for this user to fetch profile
-    const driveAccount = await DriveAccount.findOne({ userId });
-    if (!driveAccount) throw new ApiError(404, "No drive accounts connected");
+    // const driveAccount = await DriveAccount.findOne({ userId });
+    // if (!driveAccount) throw new ApiError(404, "No drive accounts connected");
 
-    const profile = await fetchGoogleProfile(driveAccount);
+    // const profile = await fetchGoogleProfile(driveAccount);
 
     res.json({
-      id: profile.id,
-      email: profile.email,
-      name: profile.name,
-      picture: profile.picture,
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
     });
   } catch (error) {
     next(error);

@@ -1,8 +1,16 @@
 import express, { Request, Response, NextFunction } from "express";
 import passport from "passport";
 import { generateToken } from "../utils/jwt.js";
-import { generateOAuthState, validateOAuthState, checkAndMarkNonce } from "../utils/oauthState.js";
-import { authenticateToken, AuthenticatedRequest } from "../middleware/auth.middleware.js";
+import {
+  generateOAuthState,
+  validateOAuthState,
+  checkAndMarkNonce,
+} from "../utils/oauthState.js";
+import {
+  authenticateToken,
+  AuthenticatedRequest,
+} from "../middleware/auth.middleware.js";
+import driveAccount from "../models/driveAccount.js";
 
 const router = express.Router();
 
@@ -13,21 +21,18 @@ const router = express.Router();
 /**
  * Step 1: Start Google OAuth for main app login
  */
-router.get(
-  "/google",
-  (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate("user-auth", {
-      scope: [
-        "profile",
-        "email",
-        "https://www.googleapis.com/auth/drive.readonly",
-      ],
-      accessType: "offline" as const,
-      prompt: "consent" as const,
-      session: false,
-    } as any)(req, res, next);
-  }
-);
+router.get("/google", (req: Request, res: Response, next: NextFunction) => {
+  passport.authenticate("user-auth", {
+    scope: [
+      "profile",
+      "email",
+      "https://www.googleapis.com/auth/drive.readonly",
+    ],
+    accessType: "offline" as const,
+    prompt: "consent" as const,
+    session: false,
+  } as any)(req, res, next);
+});
 
 /**
  * Step 2: Google OAuth callback (main login)
@@ -51,9 +56,7 @@ router.get(
         });
 
         // Redirect to frontend with JWT token only (no userId in URL)
-        res.redirect(
-          `http://localhost:5173/auth/callback?token=${token}`
-        );
+        res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
       }
     )(req, res, next);
   }
@@ -67,15 +70,30 @@ router.get(
  * Step 1: Start OAuth for adding another Drive account
  * IMPORTANT: Requires authentication - userId from token, not query parameter
  */
+
+router.post("/add-account", authenticateToken, async (req:AuthenticatedRequest, res:Response, next:NextFunction) => {
+  try {
+    const userId = req.userId!;
+    console.log("userId:",userId)
+    const state = generateOAuthState(userId);
+    console.log("state:",state)
+    // Construct backend OAuth URL
+    const authUrl = `${process.env.BACKEND_URL}/api/auth/add-drive-account?state=${state}`;
+
+    res.json({ authUrl });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get(
   "/add-drive-account",
-  authenticateToken,
-  (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  (req: Request, res: Response, next: NextFunction) => {
     // Get userId from authenticated token, not from query parameter
-    const userId = req.userId!;
+    console.log("state",req.query.state)
+      const state = req.query.state as string;
 
     // Generate cryptographically signed state with authenticated userId
-    const state = generateOAuthState(userId);
 
     passport.authenticate("add-drive-account", {
       scope: [
@@ -104,9 +122,7 @@ router.get(
         if (err || !payload) {
           console.error("Add-drive OAuth failed:", err);
           return res.redirect(
-            `http://localhost:5173/dashboard?driveAdded=false&error=${encodeURIComponent(
-              "OAuth authentication failed"
-            )}`
+            `http://localhost:5173/drives`
           );
         }
 
@@ -115,30 +131,29 @@ router.get(
              Validate OAuth state securely
           -------------------------------*/
           const rawState = req.query.state as string | undefined;
-          
+
           if (!rawState) {
             throw new Error("Missing OAuth state parameter");
           }
 
           const state = validateOAuthState(rawState);
-          
+
           if (!state) {
             throw new Error("Invalid or expired OAuth state");
           }
 
           // Check nonce to prevent replay attacks
           if (!checkAndMarkNonce(state.nonce)) {
-            throw new Error("State nonce already used (replay attack prevented)");
+            throw new Error(
+              "State nonce already used (replay attack prevented)"
+            );
           }
 
           const userId = state.userId;
           const { profile, accessToken, refreshToken } = payload;
 
-          const DriveAccount = (
-            await import("../models/driveAccount.js")
-          ).default;
-
-          const driveAccount = await DriveAccount.findOneAndUpdate(
+          
+          const driveaccount = await driveAccount.findOneAndUpdate(
             {
               userId,
               googleId: profile.id,
@@ -164,14 +179,12 @@ router.get(
           );
 
           return res.redirect(
-            `http://localhost:5173/dashboard?driveAdded=true&accountId=${driveAccount._id}`
+            `http://localhost:5173/drives`
           );
         } catch (error: any) {
           console.error("Drive account save failed:", error);
           return res.redirect(
-            `http://localhost:5173/dashboard?driveAdded=false&error=${encodeURIComponent(
-              error.message || "Unknown error"
-            )}`
+            `http://localhost:5173/drives`
           );
         }
       }
@@ -183,14 +196,17 @@ router.get(
    LOGOUT
 -------------------------------------------------------------------*/
 
-
-
 router.post("/logout", (req: Request, res: Response) => {
   // Handle logout with callback to ensure session cleanup
   req.logout((err) => {
     if (err) {
-      console.error('Error during logout:', err);
-      return res.status(500).json({ success: false, error: 'Could not log out, please try again.' });
+      console.error("Error during logout:", err);
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Could not log out, please try again.",
+        });
     }
     // Clear session cookies
     res.clearCookie("session");

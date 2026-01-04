@@ -43,11 +43,11 @@ app.use("/test", (req,res) => {
   res.send("Server is running");
 });
 // Google OAuth routes
-app.use("/auth", googleAuthRoutes);
+app.use("/api/auth", googleAuthRoutes);
 // Email/password authentication routes
-app.use("/api/auth", emailAuthRoutes);
+app.use("/api/email-auth", emailAuthRoutes);
 app.use("/api/drive", driveRoutes);
-app.use("/api", profileRoutes);
+app.use("/api/profile", profileRoutes);
 app.use("/api", searchRoutes);
 app.use(errorHandler);
 

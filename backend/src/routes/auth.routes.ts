@@ -5,7 +5,7 @@ import { authenticateToken } from '../middleware/auth.middleware.js';
 const router = express.Router();
 
 // Email/password authentication routes
-router.post('/register', register);
+router.post('/signup', register);
 router.post('/login', login);
 router.get('/profile', authenticateToken, getProfile); // Protected route, no userId parameter
 router.post('/logout', logout);

@@ -13,9 +13,10 @@ import {
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { drives, currentUser } from '@/data/mockData';
+import { drives } from '@/data/mockData';
 import { getStatusDotClass } from '@/lib/formatters';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TopBarProps {
   selectedDrives: string[];
@@ -27,7 +28,7 @@ export function TopBar({ selectedDrives, onDriveSelectionChange, onMenuClick }: 
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isMobile = useIsMobile();
-
+  const { user } = useAuth();
   const handleDriveToggle = (driveId: string) => {
     if (driveId === 'all') {
       onDriveSelectionChange([]);
@@ -138,13 +139,13 @@ export function TopBar({ selectedDrives, onDriveSelectionChange, onMenuClick }: 
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="gap-2 px-2 h-9">
               <Avatar className="h-7 w-7 md:h-8 md:w-8">
-                <AvatarImage src={currentUser.avatar} alt={currentUser.name} />
-                <AvatarFallback>{currentUser.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                <AvatarImage src={user.picture} alt={user.name} />
+                <AvatarFallback className="hover:text-black">{user?.name?.split(' ').map(n => n[0]).join('')}</AvatarFallback>
               </Avatar>
               {!isMobile && (
                 <>
                   <div className="hidden lg:block text-left">
-                    <p className="text-sm font-medium">{currentUser.name}</p>
+                    <p className="text-sm font-medium">{user.name}</p>
                   </div>
                   <ChevronDown className="h-4 w-4 hidden lg:block" />
                 </>
@@ -154,8 +155,8 @@ export function TopBar({ selectedDrives, onDriveSelectionChange, onMenuClick }: 
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div>
-                <p className="font-medium">{currentUser.name}</p>
-                <p className="text-xs text-muted-foreground font-normal">{currentUser.email}</p>
+                <p className="font-medium">{user.name}</p>
+                <p className="text-xs text-muted-foreground font-normal">{user.email}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

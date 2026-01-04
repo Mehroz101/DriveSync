@@ -4,6 +4,7 @@ import DriveAccount from "../models/driveAccount.js";
 import File from "../models/file.js";
 import { fetchDriveFiles, fetchUserProfile, fetchDriveAccountFiles } from "../services/drive.service.js";
 import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
+import OAuthState from "../models/OAuthState.js";
 
 export const getDriveFiles = async (
   req: AuthenticatedRequest,
@@ -52,14 +53,11 @@ export const getMyProfile = async (req: AuthenticatedRequest, res: Response,  ne
     console.log("=============getMyProfile=============")
     // Use userId from authenticated token, not from URL parameters
     const userId = req.userId!;
-    console.log(userId)
     const user = await User.findById(userId);
-    console.log("user",user)
     if (!user) return res.status(404).json({ error: "User not found" });
     
     // Get the first connected drive account for this user to fetch profile
     const driveAccount = await DriveAccount.findOne({ userId });
-    console.log("drive",driveAccount)
     if (!driveAccount) return res.status(404).json({ error: "No drive accounts connected" });
     const profile = await fetchUserProfile(driveAccount);
     res.json(profile);
@@ -98,6 +96,14 @@ export const getAllDriveAccounts = async (req: AuthenticatedRequest, res: Respon
 // Add a new drive account (redirect to OAuth flow with authentication)
 export const addDriveAccount = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+     const state = crypto.randomUUID();
+
+    // Persist OAuth state
+    OAuthState.create({
+      state,
+      userId: req.userId,
+      purpose: "ADD_DRIVE"
+    });
     // User must be authenticated - userId comes from token via middleware
     // The /auth/add-drive-account route now requires authentication
     // Return the backend auth URL that requires authentication

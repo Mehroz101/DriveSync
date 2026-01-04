@@ -1,6 +1,13 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from '@/types';
-import { getCurrentUser } from '@/services/api';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { User } from "@/types";
+import { getCurrentUser } from "@/services/api";
+import { apiClient } from "@/api/axios.client";
 
 interface AuthContextType {
   user: User | null;
@@ -24,7 +31,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Check if user is authenticated on app load
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem("token");
     if (token) {
       checkAuthStatus();
     } else {
@@ -34,67 +41,74 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await getCurrentUser();
-      if (response.success) {
-        setUser(response.data);
-      } else {
-        localStorage.removeItem('authToken');
-      }
+      const response = await apiClient.get("/profile");
+      setUser(response.data);
     } catch (error) {
-      localStorage.removeItem('authToken');
+      localStorage.removeItem("token");
     } finally {
       setLoading(false);
     }
   };
 
   const login = async (email: string, password: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // For demo purposes, we'll use the mock user if credentials match
-    if (email === 'test@gmail.com' && password === '12345678') {
-      const response = await getCurrentUser();
-      if (response.success) {
+    try {
+      const response = await apiClient.post("/email-auth/login", {
+        email,
+        password,
+      });
+      if (response.status === 200) {
         setUser(response.data);
-        localStorage.setItem('authToken', 'demo-token');
       }
-    } else {
-      throw new Error('Invalid credentials');
+    } catch (error) {
+      console.error("Login failed:", error);
+      throw new Error(error);
     }
+    // Simulate API call
+    // await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // // For demo purposes, we'll use the mock user if credentials match
+    // if (email === 'test@gmail.com' && password === '12345678') {
+    //   const response = await getCurrentUser();
+    //   if (response.success) {
+    //     setUser(response.data);
+    //     localStorage.setItem('authToken', 'demo-token');
+    //   }
+    // } else {
+    //   throw new Error('Invalid credentials');
+    // }
   };
 
   const signup = async (name: string, email: string, password: string) => {
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // For demo purposes, create a mock user
-    const newUser: User = {
-      id: `user-${Date.now()}`,
-      name,
-      email,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
-      createdAt: new Date().toISOString(),
-      status: 'active',
-    };
-    
-    setUser(newUser);
-    localStorage.setItem('authToken', 'demo-token');
+    try {
+      const response = await apiClient.post("/email-auth/signup", {
+        name,
+        email,
+        password,
+      });
+      if (response.status === 200) {
+        setUser(response.data);
+      }
+    } catch (error) {
+      console.error("Signup failed:", error);
+      throw new Error(error);
+    }
   };
 
   const loginWithGoogle = async () => {
     // Simulate Google login
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
     const response = await getCurrentUser();
     if (response.success) {
       setUser(response.data);
-      localStorage.setItem('authToken', 'demo-token');
+      localStorage.setItem("authToken", "demo-token");
     }
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('authToken');
+    localStorage.removeItem("authToken");
   };
 
   const value = {
@@ -113,7 +127,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

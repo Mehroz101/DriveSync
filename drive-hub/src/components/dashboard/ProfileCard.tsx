@@ -3,28 +3,29 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Settings, HardDrive } from 'lucide-react';
 import { currentUser, drives } from '@/data/mockData';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function ProfileCard() {
   const activeDrives = drives.filter(d => d.status === 'active').length;
-
+  const {user} = useAuth()
   return (
     <div className="rounded-xl border bg-card p-6 shadow-card">
       <div className="flex items-start gap-4">
         <Avatar className="h-16 w-16 border-2 border-accent/20">
-          <AvatarImage src={currentUser.avatar} alt={currentUser.name} />
+          <AvatarImage src={user.picture} alt={user.name} />
           <AvatarFallback className="text-lg">
-            {currentUser.name.split(' ').map(n => n[0]).join('')}
+            {user?.name?.split(' ').map(n => n[0]).join('')}
           </AvatarFallback>
         </Avatar>
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold truncate">{currentUser.name}</h2>
+            <h2 className="text-xl font-semibold truncate">{user.name}</h2>
             <Badge variant="secondary" className="bg-success/10 text-success border-0">
               Active
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground truncate">{currentUser.email}</p>
+          <p className="text-sm text-muted-foreground truncate">{user.email}</p>
           
           <div className="flex items-center gap-4 mt-4">
             <div className="flex items-center gap-2 text-sm">

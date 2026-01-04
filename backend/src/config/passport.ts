@@ -13,7 +13,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-      callbackURL: "/auth/google/callback",
+      callbackURL: "/api/auth/google/callback",
       scope: [
         "profile",
         "email",
@@ -68,7 +68,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-      callbackURL: "/auth/add-drive-account/callback",
+      callbackURL: `${process.env.BACKEND_URL}/api/auth/add-drive-account/callback`,
       scope: [
         "profile",
         "email",

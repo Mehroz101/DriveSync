@@ -9,7 +9,7 @@ router.get("/files", authenticateToken, getDriveFiles);
 
 // Routes for managing drive accounts - all protected
 router.get("/accounts", authenticateToken, getAllDriveAccounts);
-router.post("/accounts", authenticateToken, addDriveAccount);
+router.post("/add-account", authenticateToken, addDriveAccount);
 router.delete("/accounts/:accountId", authenticateToken, removeDriveAccount);
 router.post("/sync", authenticateToken, syncDriveFiles);
 

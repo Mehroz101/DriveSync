@@ -5,6 +5,6 @@ import { authenticateToken } from "../middleware/auth.middleware.js";
 const router = express.Router();
 
 // Protected profile route - uses token-based authentication
-router.get("/profile", authenticateToken, getProfile);
+router.get("/", authenticateToken, getProfile);
 
 export default router;
