@@ -5,20 +5,23 @@ export interface User {
   email: string;
   picture?: string;
   createdAt: string;
-  status: 'active' | 'inactive';
+  status: "active" | "inactive";
 }
 
 // Drive Types
 export interface Drive {
-  id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-  storageUsed: number;
-  storageTotal: number;
-  status: 'active' | 'expired' | 'syncing' | 'error';
-  lastSyncedAt: string;
-  fileCount: number;
+    _id: string;
+    name: string;
+    email: string;
+    profileImg?: string;
+    storage: {
+      remaining: number;
+      total: number;
+      usagePercentage: number;
+      used: number;
+    };
+    connectionStatus: "active" | "inactive" | "syncing" | "error" | "expired";
+    lastFetched: string;
 }
 
 // File Types
@@ -36,7 +39,17 @@ export interface DriveFile {
   thumbnailUrl?: string;
 }
 
-export type FileType = 'document' | 'spreadsheet' | 'presentation' | 'image' | 'video' | 'audio' | 'pdf' | 'archive' | 'folder' | 'other';
+export type FileType =
+  | "document"
+  | "spreadsheet"
+  | "presentation"
+  | "image"
+  | "video"
+  | "audio"
+  | "pdf"
+  | "archive"
+  | "folder"
+  | "other";
 
 // Duplicate Types
 export interface DuplicateGroup {
@@ -51,7 +64,7 @@ export interface DuplicateGroup {
 // Activity Types
 export interface Activity {
   id: string;
-  type: 'upload' | 'delete' | 'connect' | 'disconnect' | 'sync' | 'share';
+  type: "upload" | "delete" | "connect" | "disconnect" | "sync" | "share";
   description: string;
   driveId?: string;
   driveName?: string;
@@ -86,9 +99,9 @@ export interface DriveUsageStats {
 
 // Settings Types
 export interface UserPreferences {
-  viewMode: 'grid' | 'list';
+  viewMode: "grid" | "list";
   paginationSize: 10 | 25 | 50 | 100;
-  defaultDrive: string | 'all';
+  defaultDrive: string | "all";
   notifications: boolean;
   autoSync: boolean;
 }

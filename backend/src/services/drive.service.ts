@@ -25,7 +25,7 @@ export const fetchDriveFiles = async (user: any) => {
 };
 
 export const fetchDriveAccountFiles = async (driveAccount: any) => {
-  const auth = createGoogleAuthClient(driveAccount);
+  const auth = driveAccount;
   const drive = google.drive({ version: "v3", auth });
 
   let files: any[] = [];
@@ -95,4 +95,25 @@ export const searchDriveFiles = async (userId: string, query: string) => {
   }).limit(100); // Limit results
 
   return searchResults;
+};
+
+export const fetchDriveQuotaFromGoogle = async (driveAccount: any) => {
+  const oauth2Client = await createGoogleAuthClient(driveAccount);
+
+  const drive = google.drive({
+    version: "v3",
+    auth: oauth2Client,
+  });
+
+  const response = await drive.about.get({
+    fields: "storageQuota",
+  });
+  const quota = response.data.storageQuota;
+
+  return {
+    used: Number(quota?.usage || 0),
+    total: Number(quota?.limit || 0),
+    usageInDrive: Number(quota?.usageInDrive || 0),
+    usageInDriveTrash: Number(quota?.usageInDriveTrash || 0),
+  };
 };

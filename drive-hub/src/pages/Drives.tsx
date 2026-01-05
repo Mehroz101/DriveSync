@@ -1,13 +1,21 @@
-import { useState, useEffect } from 'react';
-import { Plus, RefreshCw, MoreVertical, Trash2, Settings, ExternalLink, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from "react";
+import {
+  Plus,
+  RefreshCw,
+  MoreVertical,
+  Trash2,
+  Settings,
+  ExternalLink,
+  Loader2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -16,16 +24,21 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { StorageBar } from '@/components/shared/StorageBar';
-import { StatusBadge } from '@/components/shared/StatusBadge';
-import { SkeletonCard } from '@/components/shared/SkeletonCard';
-import { getDrives, refreshDrive } from '@/services/api';
-import { formatBytes, formatRelativeTime, formatNumber } from '@/lib/formatters';
-import { cn } from '@/lib/utils';
-import type { Drive } from '@/types';
-import AddDriveDialog from '@/components/dashboard/AddDriveDialog';
+} from "@/components/ui/dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { StorageBar } from "@/components/shared/StorageBar";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { SkeletonCard } from "@/components/shared/SkeletonCard";
+import { getDrives, refreshDrive } from "@/services/api";
+import {
+  formatBytes,
+  formatRelativeTime,
+  formatNumber,
+} from "@/lib/formatters";
+import { cn } from "@/lib/utils";
+import type { Drive } from "@/types";
+import AddDriveDialog from "@/components/dashboard/AddDriveDialog";
+import { getGoogleDriveAccounts } from "@/api/api.drive";
 
 export default function Drives() {
   const [drives, setDrives] = useState<Drive[]>([]);
@@ -36,9 +49,11 @@ export default function Drives() {
   useEffect(() => {
     async function fetchDrives() {
       setLoading(true);
-      const response = await getDrives();
-      if (response.success) {
-        setDrives(response.data);
+
+      const response = await getGoogleDriveAccounts();
+      if (response && response.data) {
+        console.log(response)
+        setDrives(response.data.accounts);
       }
       setLoading(false);
     }
@@ -49,7 +64,7 @@ export default function Drives() {
     setRefreshingDrive(driveId);
     const response = await refreshDrive(driveId);
     if (response.success) {
-      setDrives(drives.map(d => d.id === driveId ? response.data : d));
+      setDrives(drives.map((d) => (d._id === driveId ? response.data : d)));
     }
     setRefreshingDrive(null);
   };
@@ -59,12 +74,17 @@ export default function Drives() {
       {/* Page Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Connected Drives</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+            Connected Drives
+          </h1>
           <p className="text-sm md:text-base text-muted-foreground">
             Manage your Google Drive accounts.
           </p>
         </div>
-        <AddDriveDialog isAddDialogOpen={isAddDialogOpen} setIsAddDialogOpen={setIsAddDialogOpen} />
+        <AddDriveDialog
+          isAddDialogOpen={isAddDialogOpen}
+          setIsAddDialogOpen={setIsAddDialogOpen}
+        />
         {/* <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2 w-full sm:w-auto">
@@ -119,42 +139,55 @@ export default function Drives() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {drives.map((drive) => (
+          {drives?.map((drive) => (
             <div
-              key={drive.id}
+              key={drive._id}
               className={cn(
-                'rounded-xl border bg-card p-4 md:p-6 shadow-card transition-shadow hover:shadow-card-hover',
-                drive.status === 'expired' && 'border-warning/30 bg-warning/5'
+                "rounded-xl border bg-card p-4 md:p-6 shadow-card transition-shadow hover:shadow-card-hover",
+                drive.connectionStatus === "expired" && "border-warning/30 bg-warning/5"
               )}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar className="h-10 w-10 md:h-12 md:w-12 shrink-0">
-                    <AvatarImage src={drive.avatar} alt={drive.name} />
-                    <AvatarFallback>{drive.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                    <AvatarImage src={drive.profileImg} alt={drive.name} />
+                    <AvatarFallback>
+                      {drive.name.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold truncate">{drive.name}</h3>
-                      <StatusBadge status={drive.status} />
+                      <StatusBadge status={drive.connectionStatus} />
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">{drive.email}</p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {drive.email}
+                    </p>
                   </div>
                 </div>
-                
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                    >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       className="gap-2"
-                      onClick={() => handleRefreshDrive(drive.id)}
-                      disabled={refreshingDrive === drive.id}
+                      onClick={() => handleRefreshDrive(drive._id)}
+                      disabled={refreshingDrive === drive._id}
                     >
-                      <RefreshCw className={cn('h-4 w-4', refreshingDrive === drive.id && 'animate-spin')} />
+                      <RefreshCw
+                        className={cn(
+                          "h-4 w-4",
+                          refreshingDrive === drive._id && "animate-spin"
+                        )}
+                      />
                       Refresh Data
                     </DropdownMenuItem>
                     <DropdownMenuItem className="gap-2">
@@ -171,21 +204,32 @@ export default function Drives() {
               </div>
 
               <div className="mt-4 md:mt-6 space-y-4">
-                <StorageBar used={drive.storageUsed} total={drive.storageTotal} />
-                
+                <StorageBar
+                  used={drive.storage.used || 0}
+                  total={drive.storage.total}
+                />
+
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-muted-foreground">Files</p>
-                    <p className="font-medium">{formatNumber(drive.fileCount)}</p>
+                    <p className="font-medium">
+                      {/* {formatNumber(drive.storage.)} */} 23
+                    </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Last Synced</p>
-                    <p className="font-medium">{formatRelativeTime(drive.lastSyncedAt)}</p>
+                    <p className="font-medium">
+                      {formatRelativeTime(drive.lastFetched)}
+                    </p>
                   </div>
                 </div>
 
-                {drive.status === 'expired' && (
-                  <Button variant="outline" size="sm" className="w-full gap-2 border-warning text-warning hover:bg-warning hover:text-warning-foreground">
+                {drive.connectionStatus === "expired" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2 border-warning text-warning hover:bg-warning hover:text-warning-foreground"
+                  >
                     <RefreshCw className="h-4 w-4" />
                     Reconnect Drive
                   </Button>

@@ -5,8 +5,9 @@ import { authenticateToken } from "../middleware/auth.middleware.js";
 const router = express.Router();
 
 // Routes for individual drive files - all protected with authentication
-router.get("/files", authenticateToken, getDriveFiles);
+router.get("/get-all-drives", authenticateToken, getAllDriveAccounts);
 
+router.get("/files", authenticateToken, getDriveFiles);
 // Routes for managing drive accounts - all protected
 router.get("/accounts", authenticateToken, getAllDriveAccounts);
 router.post("/add-account", authenticateToken, addDriveAccount);

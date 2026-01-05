@@ -9,3 +9,12 @@ export const addGoogleDriveAccount = async () => {
     console.log(error);
   }
 };
+export const getGoogleDriveAccounts  = async () => {
+  try {
+    const response = await apiClient.get("/drive/get-all-drives");
+    console.log(response);
+    return response;
+  } catch (error) {
+    console.log(error);
+  }
+};

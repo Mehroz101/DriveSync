@@ -151,7 +151,7 @@ router.get(
 
           const userId = state.userId;
           const { profile, accessToken, refreshToken } = payload;
-
+          console.log("profile",profile)
           
           const driveaccount = await driveAccount.findOneAndUpdate(
             {
@@ -165,6 +165,7 @@ router.get(
               email: profile.emails?.[0]?.value || "",
               accessToken,
               refreshToken,
+              profileImg: profile.photos?.[0]?.value || "",
               scopes: [
                 "profile",
                 "email",

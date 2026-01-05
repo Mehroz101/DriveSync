@@ -9,6 +9,7 @@ import { SkeletonCard } from '@/components/shared/SkeletonCard';
 import { getDashboardStats } from '@/services/api';
 import { formatBytes, formatNumber } from '@/lib/formatters';
 import type { DashboardStats } from '@/types';
+import { getGoogleDriveAccounts } from '@/api/api.drive';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -17,8 +18,8 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
-      const response = await getDashboardStats();
-      if (response.success) {
+      const response = await getGoogleDriveAccounts();
+      if (response) {
         setStats(response.data);
       }
       setLoading(false);
@@ -91,3 +92,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

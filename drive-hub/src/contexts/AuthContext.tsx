@@ -44,7 +44,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await apiClient.get("/profile");
       setUser(response.data);
     } catch (error) {
-      localStorage.removeItem("token");
+      console.error("Failed to check auth status:", error);
     } finally {
       setLoading(false);
     }
@@ -52,6 +52,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = async (email: string, password: string) => {
     try {
+      console.log("login: ",email, password)
       const response = await apiClient.post("/email-auth/login", {
         email,
         password,

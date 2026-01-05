@@ -28,9 +28,10 @@ const driveAccountSchema = new mongoose.Schema({
   },
   connectionStatus: { 
     type: String, 
-    enum: ["connected", "disconnected", "error"], 
-    default: "connected" 
+    enum: ["active", "inactive", "error"], 
+    default: "active" 
   },
+  
   scopes: [{ type: String }], // OAuth scopes granted
   lastSync: { 
     type: Date 
@@ -45,6 +46,9 @@ const driveAccountSchema = new mongoose.Schema({
   quotaTotal: { 
     type: Number, 
     default: 0 
+  },
+  profileImg:{
+    type:String
   }
 }, {
   timestamps: true
