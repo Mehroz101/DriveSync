@@ -9,23 +9,14 @@ import { SkeletonCard } from '@/components/shared/SkeletonCard';
 import { getDashboardStats } from '@/services/api';
 import { formatBytes, formatNumber } from '@/lib/formatters';
 import type { DashboardStats } from '@/types';
-import { getGoogleDriveAccounts } from '@/api/api.drive';
+import { useDriveAccounts } from '@/queries/drive/useDriveAccounts';
+import { useDashboardStates } from '@/queries/dashboard/useDashboard';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  // const {data:stats, isLoading} = useDashboardStates();
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      const response = await getGoogleDriveAccounts();
-      if (response) {
-        setStats(response.data);
-      }
-      setLoading(false);
-    }
-    fetchData();
-  }, []);
 
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
@@ -44,7 +35,7 @@ export default function Dashboard() {
       <QuickActions />
 
       {/* Stats Grid */}
-      {loading ? (
+      {isLoading ? (
         <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <SkeletonCard key={i} />

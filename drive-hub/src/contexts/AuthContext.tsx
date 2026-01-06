@@ -7,7 +7,7 @@ import {
 } from "react";
 import { User } from "@/types";
 import { getCurrentUser } from "@/services/api";
-import { apiClient } from "@/api/axios.client";
+import { apiClient } from "@/api/http/axios.client";
 
 interface AuthContextType {
   user: User | null;
@@ -57,6 +57,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         email,
         password,
       });
+      console.log(response.data)
       if (response.status === 200) {
         setUser(response.data);
       }

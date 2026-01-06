@@ -10,7 +10,7 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { ExternalLink, Plus } from "lucide-react";
-import { addGoogleDriveAccount } from "@/api/api.drive";
+import { useAddDrive } from "@/mutations/drive/useAddDrive";
 const BASE_URL = "http://localhost:4000";
 const AddDriveDialog = ({
   isAddDialogOpen,
@@ -19,12 +19,22 @@ const AddDriveDialog = ({
   isAddDialogOpen: boolean;
   setIsAddDialogOpen: (open: boolean) => void;
 }) => {
-  const addGoogleDrive = async () => {
-    const res = await addGoogleDriveAccount();
-    const { authUrl } = res.data;
-    localStorage.setItem("test",authUrl)
-    console.log(authUrl)
-    window.location.href = authUrl;
+  const { mutateAsync, isPending } = useAddDrive();
+  const handleAddDrive = async () => {
+    try {
+      const response = await mutateAsync();
+      const { authUrl } = response;
+
+      if (!authUrl) {
+        throw new Error("Missing OAuth URL");
+      }
+
+      // 🔐 Full redirect to backend OAuth flow
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error("Add Drive failed:", error);
+      alert("Unable to connect Google Drive. Please try again.");
+    }
   };
   return (
     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -76,13 +86,21 @@ const AddDriveDialog = ({
               Click below to authorize access to your Drive
             </p>
           </div>
-          <Button onClick={addGoogleDrive} className="gap-2 gradient-primary">
+          <Button
+            disabled={isPending}
+            onClick={handleAddDrive}
+            className="gap-2 gradient-primary"
+          >
             <ExternalLink className="h-4 w-4" />
-            Sign in with Google
+            {isPending ? "Redirecting…" : "Sign in with Google"}
           </Button>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+          <Button
+            variant="outline"
+            disabled={isPending}
+            onClick={() => setIsAddDialogOpen(false)}
+          >
             Cancel
           </Button>
         </DialogFooter>

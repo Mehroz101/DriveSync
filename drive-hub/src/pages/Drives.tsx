@@ -38,33 +38,37 @@ import {
 import { cn } from "@/lib/utils";
 import type { Drive } from "@/types";
 import AddDriveDialog from "@/components/dashboard/AddDriveDialog";
-import { getGoogleDriveAccounts } from "@/api/api.drive";
+import { useDriveAccounts } from "@/queries/drive/useDriveAccounts";
 
 export default function Drives() {
-  const [drives, setDrives] = useState<Drive[]>([]);
-  const [loading, setLoading] = useState(true);
+  // const [drives, setDrives] = useState<Drive[]>([]);
   const [refreshingDrive, setRefreshingDrive] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const { data: drivesResponse, isLoading } = useDriveAccounts();
+  const drives = drivesResponse?.accounts || [];
+  // useEffect(() => {
+  //   async function fetchDrives() {
+  //     setLoading(true);
 
-  useEffect(() => {
-    async function fetchDrives() {
-      setLoading(true);
-
-      const response = await getGoogleDriveAccounts();
-      if (response && response.data) {
-        console.log(response)
-        setDrives(response.data.accounts);
-      }
-      setLoading(false);
-    }
-    fetchDrives();
-  }, []);
+  //     if (response && response.data) {
+  //       console.log(response);
+  //       setDrives(response.data.accounts);
+  //     }
+  //     setLoading(false);
+  //   }
+  //   fetchDrives();
+  // }, []);
 
   const handleRefreshDrive = async (driveId: string) => {
     setRefreshingDrive(driveId);
     const response = await refreshDrive(driveId);
-    if (response.success) {
-      setDrives(drives.map((d) => (d._id === driveId ? response.data : d)));
+    if (response.success && drivesResponse) {
+      // Update the accounts array with the refreshed drive
+      const updatedAccounts = drivesResponse.accounts.map((d) => 
+        d._id === driveId ? response.data : d
+      );
+      // Create new response object with updated accounts
+      // We can't directly update the query cache here, so we'll need to refetch
     }
     setRefreshingDrive(null);
   };
@@ -131,7 +135,7 @@ export default function Drives() {
       </div>
 
       {/* Drives Grid */}
-      {loading ? (
+      {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <SkeletonCard key={i} className="h-48" />
@@ -139,12 +143,13 @@ export default function Drives() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {drives?.map((drive) => (
+          {drives.map((drive) => (
             <div
               key={drive._id}
               className={cn(
                 "rounded-xl border bg-card p-4 md:p-6 shadow-card transition-shadow hover:shadow-card-hover",
-                drive.connectionStatus === "expired" && "border-warning/30 bg-warning/5"
+                drive.connectionStatus === "expired" &&
+                  "border-warning/30 bg-warning/5"
               )}
             >
               <div className="flex items-start justify-between gap-3">

@@ -8,6 +8,7 @@ export const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+    timeout: 15000,
 });
 
 // Add token to requests if available
@@ -21,6 +22,7 @@ apiClient.interceptors.request.use((config) => {
 
 apiClient.interceptors.response.use(
   (response) => {
+    console.log(response)
     //if it is login or signup add token
     if (
       response.config.url === "/email-auth/login" ||
