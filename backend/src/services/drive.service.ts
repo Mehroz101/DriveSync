@@ -117,3 +117,101 @@ export const fetchDriveQuotaFromGoogle = async (driveAccount: any) => {
     usageInDriveTrash: Number(quota?.usageInDriveTrash || 0),
   };
 };
+const fetchDriveAbout = async (driveAccount: any) => {
+  const auth = createGoogleAuthClient(driveAccount);
+  const drive = google.drive({ version: "v3", auth });
+
+  const { data } = await drive.about.get({ fields: "user, storageQuota" });
+
+  const quota = data.storageQuota;
+  console.log(quota)
+  return {
+    user: data.user,
+    storage: {
+      total: quota?.limit ? Number(quota.limit) : null,
+      used: quota?.usage ? Number(quota.usage) : null,
+      usedInDrive: quota?.usageInDrive ? Number(quota.usageInDrive) : null,
+      usedInTrash: quota?.usageInDriveTrash
+        ? Number(quota.usageInDriveTrash)
+        : null,
+      remaining:
+        quota?.limit && quota?.usage
+          ? Number(quota.limit) - Number(quota.usage)
+          : null,
+    },
+  };
+};
+
+const fetchAllFiles = async (driveAccount: any) => {
+  const auth = createGoogleAuthClient(driveAccount);
+  const drive = google.drive({ version: "v3", auth });
+
+  let files: any[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const res = await drive.files.list({
+      pageSize: 1000,
+      pageToken,
+      fields: "nextPageToken, files(id, name, mimeType, size, trashed)",
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+
+    files.push(...(res.data.files || []));
+    pageToken = res.data.nextPageToken || undefined;
+  } while (pageToken);
+
+  return files;
+};
+
+export const fetchDriveStats = async (driveAccount: any) => {
+  const [about, files] = await Promise.all([
+    fetchDriveAbout(driveAccount),
+    fetchAllFiles(driveAccount),
+  ]);
+
+  let totalFiles = 0;
+  let totalFolders = 0;
+  let trashedFiles = 0;
+
+  const duplicateMap = new Map<string, number>();
+
+  for (const file of files) {
+    if (file.trashed) trashedFiles++;
+
+    if (file.mimeType === "application/vnd.google-apps.folder") {
+      totalFolders++;
+      continue;
+    }
+
+    totalFiles++;
+
+    // Duplicate detection (safe + fast)
+    if (file.name && file.size) {
+      const key = `${file.name}-${file.size}`;
+      duplicateMap.set(key, (duplicateMap.get(key) || 0) + 1);
+    }
+  }
+
+  const duplicateFiles = Array.from(duplicateMap.values()).filter(
+    (count) => count > 1
+  ).length;
+
+  return {
+    owner: about.user,
+    storage: about.storage,
+
+    stats: {
+      totalFiles,
+      totalFolders,
+      trashedFiles,
+      duplicateFiles,
+    },
+
+    meta: {
+      fetchedAt: new Date(),
+      source: "google-drive-api",
+    },
+  };
+};

@@ -7,21 +7,57 @@ export interface User {
   createdAt: string;
   status: "active" | "inactive";
 }
+// types/drive.ts or wherever you keep your types
+export interface DriveOwner {
+  kind: string; // 'drive#user'
+  displayName: string;
+  photoLink: string;
+  me: boolean;
+  permissionId: string;
+  emailAddress: string;
+}
+
+export interface DriveStorage {
+  total: number; // in bytes
+  used: number; // total used in bytes
+  usedInDrive: number; // used in drive in bytes
+  usedInTrash: number; // used in trash in bytes
+  remaining: number; // remaining space in bytes
+}
+
+export interface DriveStats {
+  totalFiles: number;
+  totalFolders: number;
+  trashedFiles: number;
+  duplicateFiles: number;
+}
+
+export interface DriveMeta {
+  fetchedAt: string; // ISO date string
+  source: string; // e.g., 'google-drive-api'
+}
+
+export interface DriveAccount {
+  owner: DriveOwner;
+  storage: DriveStorage;
+  stats: DriveStats;
+  meta: DriveMeta;
+}
 
 // Drive Types
 export interface Drive {
-    _id: string;
-    name: string;
-    email: string;
-    profileImg?: string;
-    storage: {
-      remaining: number;
-      total: number;
-      usagePercentage: number;
-      used: number;
-    };
-    connectionStatus: "active" | "inactive" | "syncing" | "error" | "expired";
-    lastFetched: string;
+  _id: string;
+  name: string;
+  email: string;
+  profileImg?: string;
+  storage: {
+    remaining: number;
+    total: number;
+    usagePercentage: number;
+    used: number;
+  };
+  connectionStatus: "active" | "inactive" | "syncing" | "error" | "expired";
+  lastFetched: string;
 }
 
 // File Types
@@ -140,9 +176,28 @@ export interface FileFilter {
 
 // Stats Types
 export interface DashboardStats {
-  totalFiles: number;
-  totalStorageUsed: number;
-  connectedDrives: number;
-  duplicateFiles: number;
-  duplicateSpace: number;
+
+  owner: {
+    displayName: string;
+    emailAddress:string;
+    photoLink:string;
+    me:boolean
+  };
+  storage: {
+    total: number;
+    used: number;
+    usedInDrive: number;
+    usedInTrash: number;
+    remaining: number;
+  };
+  stats: {
+    totalFiles: number;
+    totalFolders: number;
+    trashedFiles: number;
+    duplicateFiles: number;
+  };
+  meta: {
+    fetchedAt: Date;
+    source: string;
+  };
 }

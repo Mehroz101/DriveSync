@@ -1,35 +1,64 @@
-import { useState, useEffect } from 'react';
-import { Files, HardDrive, Database, Copy, Loader2 } from 'lucide-react';
-import { StatsCard } from '@/components/shared/StatsCard';
-import { ProfileCard } from '@/components/dashboard/ProfileCard';
-import { QuickActions } from '@/components/dashboard/QuickActions';
-import { DrivesSummary } from '@/components/dashboard/DrivesSummary';
-import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
-import { SkeletonCard } from '@/components/shared/SkeletonCard';
-import { getDashboardStats } from '@/services/api';
-import { formatBytes, formatNumber } from '@/lib/formatters';
-import type { DashboardStats } from '@/types';
-import { useDriveAccounts } from '@/queries/drive/useDriveAccounts';
-import { useDashboardStates } from '@/queries/dashboard/useDashboard';
+import { Files, HardDrive, Database, Copy, Loader2 } from "lucide-react";
+import { ProfileCard } from "@/components/dashboard/ProfileCard";
+import { QuickActions } from "@/components/dashboard/QuickActions";
+import { DrivesSummary } from "@/components/dashboard/DrivesSummary";
+import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
+import { SkeletonCard } from "@/components/shared/SkeletonCard";
+import { formatBytes, formatNumber } from "@/lib/formatters";
+import type { DashboardStats, DriveAccount } from "@/types";
+import { useDashboardStates } from "@/queries/dashboard/useDashboard";
+import { StatsCard } from "@/components/shared/StatsCard";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+interface AggregatedStats {
+  totalFiles: number;
+  totalStorageUsed: number;
+  connectedDrives: number;
+  duplicateFiles: number;
+  duplicateSpace: number;
+  totalStorage: number;
+}
+
+function aggregateDriveStats(drives: DashboardStats[]): AggregatedStats {
+  return drives.reduce(
+    (acc, drive) => ({
+      totalFiles: acc.totalFiles + drive.stats.totalFiles,
+      totalStorageUsed: acc.totalStorageUsed + drive.storage.usedInDrive,
+      connectedDrives: acc.connectedDrives + 1,
+      duplicateFiles: acc.duplicateFiles + drive.stats.duplicateFiles,
+      duplicateSpace: acc.duplicateSpace, // Note: You'll need to calculate this based on your logic
+      totalStorage: acc.totalStorage + drive.storage.total,
+    }),
+    {
+      totalFiles: 0,
+      totalStorageUsed: 0,
+      connectedDrives: 0,
+      duplicateFiles: 0,
+      duplicateSpace: 0,
+      totalStorage: 0,
+    }
+  );
+}
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  // const {data:stats, isLoading} = useDashboardStates();
+  const { data: drives, isLoading } = useDashboardStates();
 
+  const aggregatedStats = drives ? aggregateDriveStats(drives) : null;
 
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
       {/* Page Header */}
       <div>
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+          Dashboard
+        </h1>
         <p className="text-sm md:text-base text-muted-foreground">
           Overview of your connected drives and storage usage.
         </p>
       </div>
 
-      {/* Profile Card */}
-      <ProfileCard />
+      {/* Profile Card - Updated to show first drive as primary */}
+      <ProfileCard drive={drives?.[0] as unknown as DriveAccount} />
 
       {/* Quick Actions */}
       <QuickActions />
@@ -41,46 +70,48 @@ export default function Dashboard() {
             <SkeletonCard key={i} />
           ))}
         </div>
-      ) : stats ? (
+      ) : aggregatedStats ? (
         <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
           <StatsCard
             title="Total Files"
-            value={formatNumber(stats.totalFiles)}
-            subtitle="Across all drives"
+            value={formatNumber(aggregatedStats.totalFiles)}
+            subtitle={`Across ${aggregatedStats.connectedDrives} drives`}
             icon={Files}
-            trend={{ value: 12, isPositive: true }}
             variant="primary"
           />
           <StatsCard
             title="Storage Used"
-            value={formatBytes(stats.totalStorageUsed)}
-            subtitle="Of 195 GB total"
+            value={formatBytes(aggregatedStats.totalStorageUsed)}
+            subtitle={`Of ${formatBytes(aggregatedStats.totalStorage)} total`}
             icon={Database}
-            trend={{ value: 8, isPositive: true }}
             variant="success"
           />
           <StatsCard
             title="Connected Drives"
-            value={stats.connectedDrives}
-            subtitle="3 active, 1 expired"
+            value={aggregatedStats.connectedDrives}
+            subtitle={`All active`}
             icon={HardDrive}
           />
           <StatsCard
             title="Duplicates"
-            value={stats.duplicateFiles}
-            subtitle={`${formatBytes(stats.duplicateSpace)} recoverable`}
+            value={aggregatedStats.duplicateFiles}
+            subtitle={`${formatBytes(
+              aggregatedStats.duplicateSpace
+            )} recoverable`}
             icon={Copy}
             variant="warning"
           />
         </div>
       ) : null}
 
+      {/* Drive Details Summary - Updated to pass drives data */}
+     
+
       {/* Main Content Grid */}
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
-        <DrivesSummary />
+        <DrivesSummary drives={drives} />
         <ActivityFeed />
       </div>
     </div>
   );
 }
-

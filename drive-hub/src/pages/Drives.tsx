@@ -46,31 +46,20 @@ export default function Drives() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { data: drivesResponse, isLoading } = useDriveAccounts();
   const drives = drivesResponse?.accounts || [];
-  // useEffect(() => {
-  //   async function fetchDrives() {
-  //     setLoading(true);
-
-  //     if (response && response.data) {
-  //       console.log(response);
-  //       setDrives(response.data.accounts);
-  //     }
-  //     setLoading(false);
-  //   }
-  //   fetchDrives();
-  // }, []);
+ 
 
   const handleRefreshDrive = async (driveId: string) => {
-    setRefreshingDrive(driveId);
-    const response = await refreshDrive(driveId);
-    if (response.success && drivesResponse) {
-      // Update the accounts array with the refreshed drive
-      const updatedAccounts = drivesResponse.accounts.map((d) => 
-        d._id === driveId ? response.data : d
-      );
-      // Create new response object with updated accounts
-      // We can't directly update the query cache here, so we'll need to refetch
-    }
-    setRefreshingDrive(null);
+    // setRefreshingDrive(driveId);
+    // const response = await refreshDrive(driveId);
+    // if (response.success && drivesResponse) {
+    //   // Update the accounts array with the refreshed drive
+    //   const updatedAccounts = drivesResponse.accounts.map((d) => 
+    //     d._id === driveId ? response.data : d
+    //   );
+    //   // Create new response object with updated accounts
+    //   // We can't directly update the query cache here, so we'll need to refetch
+    // }
+    // setRefreshingDrive(null);
   };
 
   return (
