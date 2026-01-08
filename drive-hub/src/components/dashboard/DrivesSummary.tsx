@@ -13,6 +13,7 @@ import {
   HardDrive,
 } from "lucide-react";
 import type { DashboardStats, DriveAccount } from "@/types";
+import { cn } from "@/lib/utils";
 
 interface DrivesSummaryProps {
   drives?: DashboardStats[];
@@ -59,12 +60,11 @@ export function DrivesSummary({ drives }: DrivesSummaryProps) {
             {displayDrives.map((drive) => {
               const storagePercentage =
                 (drive.storage.used / drive.storage.total) * 100;
-              const storageStatus =
-                storagePercentage > 90
-                  ? "critical"
-                  : storagePercentage > 75
-                  ? "warning"
-                  : "healthy";
+              const getBarColor = () => {
+                if (storagePercentage > 90) return "bg-destructive";
+                if (storagePercentage > 75) return "bg-warning";
+                else return "gradient-primary";
+              };
 
               return (
                 <div
@@ -88,7 +88,7 @@ export function DrivesSummary({ drives }: DrivesSummaryProps) {
                       </p>
                       <div
                         className={`
-                          flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium
+                          flex max-sm:hidden  items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium
                           ${
                             drive.stats.duplicateFiles > 100
                               ? "bg-destructive/10 text-destructive"
@@ -99,8 +99,26 @@ export function DrivesSummary({ drives }: DrivesSummaryProps) {
                         `}
                         title="Duplicate files detected"
                       >
-                        <Copy className="h-3 w-3" />
-                        <span>{drive.stats.duplicateFiles}</span>
+                        <Copy className="h-3 max-sm:hidden w-3" />
+
+                        <span className="max-sm:hidden">
+                          {drive.stats.duplicateFiles}
+                        </span>
+                      </div>
+                      <div
+                        className={cn(
+                          "flex  text-white sm:hidden items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                          getBarColor()
+                        )}
+                        title="Duplicate files detected"
+                      >
+                        <Copy className="h-3 max-sm:hidden w-3" />
+                        <span className="sm:hidden text-nowrap">
+                          {formatBytes(drive.storage.used)}
+                        </span>
+                        <span className="max-sm:hidden">
+                          {drive.stats.duplicateFiles}
+                        </span>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
