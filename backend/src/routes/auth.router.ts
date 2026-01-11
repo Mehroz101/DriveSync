@@ -74,10 +74,7 @@ router.get(
 router.post("/add-account", authenticateToken, async (req:AuthenticatedRequest, res:Response, next:NextFunction) => {
   try {
     const userId = req.userId!;
-    console.log("userId:",userId)
     const state = generateOAuthState(userId);
-    console.log("state:",state)
-    // Construct backend OAuth URL
     const authUrl = `${process.env.BACKEND_URL}/api/auth/add-drive-account?state=${state}`;
 
     res.json({ authUrl });

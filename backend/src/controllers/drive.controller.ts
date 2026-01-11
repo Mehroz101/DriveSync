@@ -1,14 +1,20 @@
 import { Request, Response, NextFunction } from "express";
 import User from "../models/user.js";
-import DriveAccount from "../models/driveAccount.js";
 import File from "../models/file.js";
 import {
   fetchUserProfile,
   fetchDriveAccountFiles,
   fetchDriveQuotaFromGoogle,
+  fetchDriveStats,
+  updateDriveData,
+  fetchDriveStatsFromDatabase
 } from "../services/drive.service.js";
 import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
 import OAuthState from "../models/OAuthState.js";
+import { getUserById } from "../services/auth.service.js";
+import driveAccount from "../models/driveAccount.js";
+import { generateOAuthState } from "../utils/oauthState.js";
+const QUOTA_REFRESH_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 export const getDriveFiles = async (
   req: AuthenticatedRequest,
@@ -22,7 +28,7 @@ export const getDriveFiles = async (
     if (!user) return res.status(404).json({ error: "User not found" });
 
     // Get all drive accounts for this user
-    const driveAccounts = await DriveAccount.find({ userId });
+    const driveAccounts = await driveAccount.find({ userId });
 
     if (driveAccounts.length === 0) {
       return res.json({ files: [] });
@@ -61,24 +67,22 @@ export const getMyProfile = async (
   next: NextFunction
 ) => {
   try {
-    console.log("=============getMyProfile=============");
     // Use userId from authenticated token, not from URL parameters
     const userId = req.userId!;
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
 
     // Get the first connected drive account for this user to fetch profile
-    const driveAccount = await DriveAccount.findOne({ userId });
-    if (!driveAccount)
+    const driveAccountData = await driveAccount.findOne({ userId });
+    if (!driveAccountData)
       return res.status(404).json({ error: "No drive accounts connected" });
-    const profile = await fetchUserProfile(driveAccount);
+    const profile = await fetchUserProfile(driveAccountData);
     res.json(profile);
   } catch (err: any) {
     console.error("Error fetching profile:", err);
     next(err);
   }
 };
-const QUOTA_REFRESH_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // Get all drive accounts for a user
 export const getAllDriveAccounts = async (
@@ -89,7 +93,7 @@ export const getAllDriveAccounts = async (
   try {
     const userId = req.userId!;
 
-    const driveAccounts = await DriveAccount.find({ userId });
+    const driveAccounts = await driveAccount.find({ userId });
 
     const now = Date.now();
 
@@ -117,9 +121,7 @@ export const getAllDriveAccounts = async (
 
     // 🧼 Normalize results (ignore failed Google calls)
     const safeAccounts = refreshResults.map((result, index) =>
-      result.status === "fulfilled"
-        ? result.value
-        : driveAccounts[index]
+      result.status === "fulfilled" ? result.value : driveAccounts[index]
     );
 
     // 📊 Response mapping
@@ -133,14 +135,12 @@ export const getAllDriveAccounts = async (
         email: account.email,
         connectionStatus: account.connectionStatus,
         scopes: account.scopes,
-        profileImg:account.profileImg,
+        profileImg: account.profileImg,
         storage: {
           used,
           total,
           remaining: total ? total - used : null,
-          usagePercentage: total
-            ? Math.round((used / total) * 100)
-            : null,
+          usagePercentage: total ? Math.round((used / total) * 100) : null,
         },
 
         lastSync: account.lastSync,
@@ -166,19 +166,15 @@ export const addDriveAccount = async (
   next: NextFunction
 ) => {
   try {
-    const state = crypto.randomUUID();
-
-    // Persist OAuth state
-    OAuthState.create({
-      state,
-      userId: req.userId,
-      purpose: "ADD_DRIVE",
-    });
-    // User must be authenticated - userId comes from token via middleware
-    // The /auth/add-drive-account route now requires authentication
-    // Return the backend auth URL that requires authentication
-    const authUrl = `http://localhost:4000/auth/add-drive-account`;
-    res.json({ authUrl });
+     try {
+        const userId = req.userId!;
+        const state = generateOAuthState(userId);
+        const authUrl = `${process.env.BACKEND_URL}/api/auth/add-drive-account?state=${state}`;
+    
+        res.json({ authUrl });
+      } catch (error) {
+        next(error);
+      }
   } catch (error) {
     next(error);
   }
@@ -194,7 +190,7 @@ export const removeDriveAccount = async (
     const accountId = req.params.accountId;
 
     // First, verify ownership by checking if this account belongs to the authenticated user
-    const account = await DriveAccount.findById(accountId);
+    const account = await driveAccount.findById(accountId);
 
     if (!account) {
       return res.status(404).json({ error: "Drive account not found" });
@@ -208,7 +204,7 @@ export const removeDriveAccount = async (
     }
 
     // Remove the drive account
-    await DriveAccount.findByIdAndDelete(accountId);
+    await driveAccount.findByIdAndDelete(accountId);
 
     // Remove all files associated with this drive account
     await File.deleteMany({ driveAccountId: accountId });
@@ -220,86 +216,53 @@ export const removeDriveAccount = async (
 };
 
 // Sync files from all connected drives
-export const syncDriveFiles = async (
+export const syncAllDrivesData = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    // Use userId from authenticated token
-    const userId = req.userId!;
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const driveAccounts = await DriveAccount.find({ userId });
-
-    if (driveAccounts.length === 0) {
-      return res.json({ message: "No drive accounts connected" });
-    }
-
-    let totalFilesSynced = 0;
-
-    for (const driveAccount of driveAccounts) {
-      try {
-        // Fetch files from this drive account
-        const files = await fetchDriveAccountFiles(driveAccount);
-
-        // Update last sync time
-        await DriveAccount.findByIdAndUpdate(driveAccount._id, {
-          lastSync: new Date(),
-          lastFetched: new Date(),
-        });
-
-        // Clear existing files for this account and add new ones
-        await File.deleteMany({ driveAccountId: driveAccount._id });
-
-        // Prepare files for bulk insert
-        const filesToInsert = files.map((file) => ({
-          driveAccountId: driveAccount._id,
-          userId,
-          googleFileId: file.id,
-          name: file.name,
-          mimeType: file.mimeType,
-          webViewLink: file.webViewLink,
-          webContentLink: file.webContentLink,
-          iconLink: file.iconLink,
-          createdTime: file.createdTime,
-          modifiedTime: file.modifiedTime,
-          size: file.size,
-          owners: file.owners,
-          parents: file.parents,
-          starred: file.starred,
-          trashed: file.trashed,
-          shared: file.shared,
-          description: file.description,
-        }));
-
-        if (filesToInsert.length > 0) {
-          await File.insertMany(filesToInsert);
-          totalFilesSynced += filesToInsert.length;
-        }
-      } catch (error) {
-        console.error(
-          `Error syncing drive account ${driveAccount._id}:`,
-          error
-        );
-        // Update connection status to error
-        await DriveAccount.findByIdAndUpdate(driveAccount._id, {
-          connectionStatus: "error",
-        });
-        continue; // Continue with other accounts
-      }
-    }
-
-    res.json({
-      message: "Sync completed successfully",
-      totalFilesSynced,
-      accountsSynced: driveAccounts.length,
+    const user = await getUserById(req.userId!);
+    const driveAccounts = await driveAccount.find({
+      userId: req.userId!,
+      connectionStatus: "active",
     });
+    const stats = await Promise.allSettled(
+      driveAccounts.map((account) => fetchDriveStats(account))
+    );
+    const filteredStats = stats
+      .filter((stat) => stat.status === "fulfilled")
+      .map((stat) => stat.value);
+    return res.status(200).json(filteredStats);
   } catch (error) {
     next(error);
   }
 };
+export const syncDrive = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { driveId } = req.params;
+    const user = await getUserById(req.userId!);
+    const account = await driveAccount.findById(driveId);
+    const stats = await updateDriveData(account);
+
+    return res.status(200).json(stats);
+  } catch (error) {
+    next(error);
+  }
+};
+export const driveStats = async (req:AuthenticatedRequest,res:Response)=>{
+    try {
+        const user = await getUserById(req.userId!)
+        const driveAccounts = await driveAccount.find({ userId: req.userId!, connectionStatus:"active" });
+        // const stats = await Promise.allSettled(driveAccounts.map((account) => fetchDriveStats(account)));
+        const stats = await Promise.allSettled(driveAccounts.map((account) => fetchDriveStatsFromDatabase(account)));
+        const filteredStats = stats.filter((stat) => stat.status === "fulfilled").map((stat) => stat.value);
+        return res.status(200).json(filteredStats);
+    } catch (error) {
+        console.log(error);
+    }
+}

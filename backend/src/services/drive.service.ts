@@ -213,6 +213,76 @@ export const fetchDriveStats = async (driveAccount: any) => {
       }
     );
     return {
+      _id: driveAccount._id,
+      connectionStatus: driveAccount.connectionStatus,
+      owner: about.user,
+      storage: about.storage,
+      
+      stats: {
+        totalFiles,
+        totalFolders,
+        trashedFiles,
+        duplicateFiles,
+      },
+      
+      meta: {
+        fetchedAt: new Date(),
+        source: "google-drive-api",
+      },
+    };
+  } catch (error) {
+    console.log(error)
+  }
+};
+export const updateDriveData = async (driveAccount: any) => {
+  try {
+    
+    const [about, files] = await Promise.all([
+      fetchDriveAbout(driveAccount),
+      fetchAllFiles(driveAccount),
+    ]);
+    
+    let totalFiles = 0;
+    let totalFolders = 0;
+    let trashedFiles = 0;
+    
+    const duplicateMap = new Map<string, number>();
+    
+    for (const file of files) {
+      if (file.trashed) trashedFiles++;
+      
+      if (file.mimeType === "application/vnd.google-apps.folder") {
+        totalFolders++;
+        continue;
+      }
+      
+      totalFiles++;
+      
+      // Duplicate detection (safe + fast)
+      if (file.name && file.size) {
+        const key = `${file.name}-${file.size}`;
+        duplicateMap.set(key, (duplicateMap.get(key) || 0) + 1);
+      }
+    }
+    
+    const duplicateFiles = Array.from(duplicateMap.values()).filter(
+      (count) => count > 1
+    ).length;
+    const res = await DriveAccount.findByIdAndUpdate(
+      driveAccount._id,
+      {
+        used: about.storage.used,
+        total: about.storage.total,
+        lastFetched: new Date(),
+        trashedFiles,
+        duplicateFiles,
+        totalFiles,
+        totalFolders,
+      }
+    );
+    return {
+      _id: driveAccount._id,
+      connectionStatus: driveAccount.connectionStatus,
       owner: about.user,
       storage: about.storage,
       
@@ -261,7 +331,6 @@ export interface DashboardStats {
 
 export const fetchDriveStatsFromDatabase = async (driveAccount: any)=>{
   try {
-    console.log("called")
     const account = await DriveAccount.findById(driveAccount._id);
     if(!account) return 
     const res = {

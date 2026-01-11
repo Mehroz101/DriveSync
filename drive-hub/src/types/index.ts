@@ -176,7 +176,8 @@ export interface FileFilter {
 
 // Stats Types
 export interface DashboardStats {
-
+  _id: string;
+  connectionStatus: "active" | "inactive" | "error";
   owner: {
     displayName: string;
     emailAddress:string;
@@ -197,7 +198,7 @@ export interface DashboardStats {
     duplicateFiles: number;
   };
   meta: {
-    fetchedAt: Date;
+    fetchedAt: string;
     source: string;
   };
 }

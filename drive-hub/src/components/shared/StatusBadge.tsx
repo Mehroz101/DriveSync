@@ -1,19 +1,17 @@
-import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
-type Status = 'critical' | 'warning' | 'healthy' | 'error' | 'inactive';
+type Status = "active" | "error" | "inactive";
 
 interface StatusBadgeProps {
   status: Status;
   className?: string;
 }
 
-const statusConfig: Record<Status, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  healthy: { label: 'healthy', variant: 'default' },
-  warning: { label: 'warning', variant: 'secondary' },
-  critical: { label: 'critical', variant: 'outline' },
-  error: { label: 'error', variant: 'destructive' },
-  inactive: { label: 'inactive', variant: 'outline' },
+const statusConfig: Record<Status, { label: string }> = {
+  active: { label: "active" },
+  error: { label: "error" },
+  inactive: { label: "inactive" },
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
@@ -21,17 +19,17 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
 
   return (
     <Badge
-      variant={config.variant}
       className={cn(
-        status === 'healthy' && 'bg-success text-success-foreground hover:bg-success/80',
-        status === 'critical' && 'bg-info text-info-foreground hover:bg-info/80',
-        status === 'warning' && 'bg-warning/10 text-warning border-warning/20',
+        "border-transparent",
+        status === "active" &&
+          "bg-success text-success-foreground hover:bg-success/80",
+        status === "error" &&
+          "bg-destructive text-destructive-foreground hover:bg-destructive/80",
+        status === "inactive" &&
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         className
       )}
     >
-      {status === 'critical' && (
-        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
-      )}
       {config.label}
     </Badge>
   );

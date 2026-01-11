@@ -29,9 +29,9 @@ import {
 } from "@/lib/formatters";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
-import { useDashboardStates } from "@/queries/dashboard/useDashboard";
-import { dashboardKeys } from "@/api/dashboard/dashboard.keys";
 import { queryClient } from "@/queryClient";
+import { useDriveAccountsRefetch, useDriveAccountStats } from "@/queries/drive/useDriveAccounts";
+import { DashboardStats } from "@/types";
 
 interface TopBarProps {
   selectedDrives: string[];
@@ -45,10 +45,15 @@ export function TopBar({
   onMenuClick,
 }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats[]>([]);
   const isMobile = useIsMobile();
   const { user } = useAuth();
-  const { data: drives, isFetching, refetch } = useDashboardStates();
-
+  const { data: drives, isFetching } = useDriveAccountStats();
+  const {
+    data: syncAlltDrives,
+    isFetching: syncAllIsFetching,
+    refetch,
+  } = useDriveAccountsRefetch();
   const handleDriveToggle = (driveId: string) => {
     if (driveId === "all") {
       onDriveSelectionChange([]);
@@ -62,11 +67,14 @@ export function TopBar({
     }
   };
 
-  const handleRefresh =async () => {
-  
-  await refetch({ throwOnError: false });
+  const handleRefresh = async () => {
+    await refetch();
   };
-
+  useEffect(() => {
+    if (drives || syncAlltDrives) {
+      setDashboardStats(drives || syncAlltDrives || []);
+    }
+  }, [syncAlltDrives, drives]);
   // const selectedDriveLabel = selectedDrives.length === 0
   //   ? 'All Drives'
   //   : selectedDrives.length === 1
@@ -76,6 +84,7 @@ export function TopBar({
   return (
     <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 md:px-6 gap-4">
       {/* Mobile Menu Button */}
+
       {isMobile && (
         <Button
           variant="ghost"
@@ -101,7 +110,7 @@ export function TopBar({
       {/* Right Section */}
       <div className="flex items-center gap-2 md:gap-4">
         {/* Drive Selector - Hidden on mobile */}
-        {/* {!isMobile && (
+        {!isMobile && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
@@ -115,7 +124,7 @@ export function TopBar({
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem
                 checked={selectedDrives.length === 0}
-                onCheckedChange={() => handleDriveToggle('all')}
+                onCheckedChange={() => handleDriveToggle("all")}
               >
                 <div className="flex items-center gap-2">
                   <HardDrive className="h-4 w-4" />
@@ -123,35 +132,43 @@ export function TopBar({
                 </div>
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
-              {/* {drives.map((drive) => (
+              {dashboardStats.map((drive) => (
                 <DropdownMenuCheckboxItem
-                  key={drive.id}
-                  checked={selectedDrives.includes(drive.id)}
-                  onCheckedChange={() => handleDriveToggle(drive.id)}
+                  key={drive._id}
+                  checked={selectedDrives.includes(drive._id)}
+                  onCheckedChange={() => handleDriveToggle(drive._id)}
                 >
                   <div className="flex items-center gap-2 w-full">
-                    <div className={getStatusDotClass(drive.status)} />
-                    <span className="flex-1 truncate">{drive.name}</span>
-                    <span className="text-xs text-muted-foreground">{drive.email.split('@')[0]}</span>
+                    <div
+                      className={getStatusDotClass(drive.connectionStatus)}
+                    />
+                    <span className="flex-1 truncate">
+                      {drive.owner.displayName}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {drive.owner.emailAddress.split("@")[0]}
+                    </span>
                   </div>
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        )} */}
-
+        )}
         {/* Refresh Button */}
         <Button
           variant="ghost"
           size="icon"
           onClick={handleRefresh}
-          disabled={isFetching}
+          disabled={isFetching || syncAllIsFetching}
           className="h-9 border px-1 w-full"
         >
           <RefreshCw
-            className={cn("h-4 w-4", isFetching && "animate-spin")}
+            className={cn(
+              "h-4 w-4",
+              (isFetching || syncAllIsFetching) && "animate-spin"
+            )}
           />
-          {!isFetching && drives[0]?.meta?.fetchedAt
+          {(!isFetching || !syncAllIsFetching) && dashboardStats[0]?.meta?.fetchedAt
             ? formatDateTimeAgo(drives[0].meta.fetchedAt.toString())
             : "-"}
         </Button>

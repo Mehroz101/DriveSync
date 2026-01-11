@@ -6,9 +6,9 @@ import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
 import { formatBytes, formatNumber } from "@/lib/formatters";
 import type { DashboardStats, DriveAccount } from "@/types";
-import { useDashboardStates } from "@/queries/dashboard/useDashboard";
 import { StatsCard } from "@/components/shared/StatsCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useDriveAccountStats } from "@/queries/drive/useDriveAccounts";
 
 interface AggregatedStats {
   totalFiles: number;
@@ -41,7 +41,7 @@ function aggregateDriveStats(drives: DashboardStats[]): AggregatedStats {
 }
 
 export default function Dashboard() {
-  const { data: drives, isLoading } = useDashboardStates();
+  const { data: drives, isLoading } = useDriveAccountStats();
 
   const aggregatedStats = drives ? aggregateDriveStats(drives) : null;
 

@@ -34,18 +34,19 @@ import {
   formatBytes,
   formatRelativeTime,
   formatNumber,
+  formatDateTimeAgo,
 } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { Drive } from "@/types";
 import AddDriveDialog from "@/components/dashboard/AddDriveDialog";
-import { useDriveAccounts } from "@/queries/drive/useDriveAccounts";
+import { useDriveAccountStats } from "@/queries/drive/useDriveAccounts";
 
 export default function Drives() {
   // const [drives, setDrives] = useState<Drive[]>([]);
   const [refreshingDrive, setRefreshingDrive] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const { data: drivesResponse, isLoading } = useDriveAccounts();
-  const drives = drivesResponse?.accounts || [];
+  const { data: drivesResponse, isLoading } = useDriveAccountStats();
+  const drives = drivesResponse || [];
 
  
 
@@ -145,18 +146,18 @@ export default function Drives() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar className="h-10 w-10 md:h-12 md:w-12 shrink-0">
-                    <AvatarImage src={drive.profileImg} alt={drive.name} />
+                    <AvatarImage src={drive.owner.photoLink || ""} alt={drive.owner.displayName} />
                     <AvatarFallback>
-                      {drive.name.slice(0, 2).toUpperCase()}
+                      {drive.owner.displayName.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold truncate">{drive.name}</h3>
+                      <h3 className="font-semibold truncate">{drive.owner.displayName}</h3>
                       <StatusBadge status={drive.connectionStatus} />
                     </div>
                     <p className="text-sm text-muted-foreground truncate">
-                      {drive.email}
+                      {drive.owner.emailAddress}
                     </p>
                   </div>
                 </div>
@@ -204,17 +205,29 @@ export default function Drives() {
                   total={drive.storage.total}
                 />
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid lg:grid-cols-4 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-muted-foreground">Files</p>
                     <p className="font-medium">
-                      {/* {formatNumber(drive.storage.)} */} 23
+                      {formatNumber(drive.stats.totalFiles)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Folders</p>
+                    <p className="font-medium">
+                      {formatNumber(drive.stats.totalFolders)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Duplicates</p>
+                    <p className="font-medium">
+                      {formatNumber(drive.stats.duplicateFiles)}
                     </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Last Synced</p>
                     <p className="font-medium">
-                      {formatRelativeTime(drive.lastFetched)}
+                      {formatDateTimeAgo(drive.meta.fetchedAt)}
                     </p>
                   </div>
                 </div>
