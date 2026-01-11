@@ -154,6 +154,7 @@ const fetchAllFiles = async (driveAccount: any) => {
       pageSize: 1000,
       pageToken,
       fields: "nextPageToken, files(id, name, mimeType, size, trashed)",
+      // fields: `nextPageToken, files(id, name, mimeType, description, starred, trashed, parents, createdTime, modifiedTime, iconLink, webViewLink, webContentLink, owners(displayName,emailAddress), size, shared, capabilities(canEdit))`,
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
     });
@@ -166,52 +167,130 @@ const fetchAllFiles = async (driveAccount: any) => {
 };
 
 export const fetchDriveStats = async (driveAccount: any) => {
-  const [about, files] = await Promise.all([
-    fetchDriveAbout(driveAccount),
-    fetchAllFiles(driveAccount),
-  ]);
-
-  let totalFiles = 0;
-  let totalFolders = 0;
-  let trashedFiles = 0;
-
-  const duplicateMap = new Map<string, number>();
-
-  for (const file of files) {
-    if (file.trashed) trashedFiles++;
-
-    if (file.mimeType === "application/vnd.google-apps.folder") {
-      totalFolders++;
-      continue;
+  try {
+    
+    const [about, files] = await Promise.all([
+      fetchDriveAbout(driveAccount),
+      fetchAllFiles(driveAccount),
+    ]);
+    
+    let totalFiles = 0;
+    let totalFolders = 0;
+    let trashedFiles = 0;
+    
+    const duplicateMap = new Map<string, number>();
+    
+    for (const file of files) {
+      if (file.trashed) trashedFiles++;
+      
+      if (file.mimeType === "application/vnd.google-apps.folder") {
+        totalFolders++;
+        continue;
+      }
+      
+      totalFiles++;
+      
+      // Duplicate detection (safe + fast)
+      if (file.name && file.size) {
+        const key = `${file.name}-${file.size}`;
+        duplicateMap.set(key, (duplicateMap.get(key) || 0) + 1);
+      }
     }
-
-    totalFiles++;
-
-    // Duplicate detection (safe + fast)
-    if (file.name && file.size) {
-      const key = `${file.name}-${file.size}`;
-      duplicateMap.set(key, (duplicateMap.get(key) || 0) + 1);
-    }
+    
+    const duplicateFiles = Array.from(duplicateMap.values()).filter(
+      (count) => count > 1
+    ).length;
+    const res = await DriveAccount.findByIdAndUpdate(
+      driveAccount._id,
+      {
+        used: about.storage.used,
+        total: about.storage.total,
+        lastFetched: new Date(),
+        trashedFiles,
+        duplicateFiles,
+        totalFiles,
+        totalFolders,
+      }
+    );
+    return {
+      owner: about.user,
+      storage: about.storage,
+      
+      stats: {
+        totalFiles,
+        totalFolders,
+        trashedFiles,
+        duplicateFiles,
+      },
+      
+      meta: {
+        fetchedAt: new Date(),
+        source: "google-drive-api",
+      },
+    };
+  } catch (error) {
+    console.log(error)
   }
-
-  const duplicateFiles = Array.from(duplicateMap.values()).filter(
-    (count) => count > 1
-  ).length;
-
-  return {
-    owner: about.user,
-    storage: about.storage,
-
-    stats: {
-      totalFiles,
-      totalFolders,
-      trashedFiles,
-      duplicateFiles,
-    },
-
-    meta: {
-      fetchedAt: new Date(),
-      source: "google-drive-api",
-    },
-  };
 };
+export interface DashboardStats {
+
+  owner: {
+    displayName: string;
+    emailAddress:string;
+    photoLink:string;
+    me:boolean
+  };
+  storage: {
+    total: number;
+    used: number;
+    usedInDrive: number;
+    usedInTrash: number;
+    remaining: number;
+  };
+  stats: {
+    totalFiles: number;
+    totalFolders: number;
+    trashedFiles: number;
+    duplicateFiles: number;
+  };
+  meta: {
+    fetchedAt: Date;
+    source: string;
+  };
+}
+
+export const fetchDriveStatsFromDatabase = async (driveAccount: any)=>{
+  try {
+    console.log("called")
+    const account = await DriveAccount.findById(driveAccount._id);
+    if(!account) return 
+    const res = {
+      owner:{
+        displayName: account.name,
+        emailAddress: account.email,
+        photoLink: account.profileImg,
+        me: true
+      },
+      storage: {
+        total: account.total,
+        used: account.used,
+        usedInDrive: account.used,
+        usedInTrash: account.trashedFiles,
+        remaining: account.total - account.used,
+      },
+      stats:{
+        totalFiles: account.totalFiles,
+        totalFolders: account.totalFolders,
+        trashedFiles: account.trashedFiles,
+        duplicateFiles: account.duplicateFiles,
+      },
+      meta:{
+        fetchedAt: account.lastFetched,
+        source: "google-drive-api",
+      }
+    }
+    return res;
+  } catch (error) {
+    
+  }
+}

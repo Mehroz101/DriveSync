@@ -106,8 +106,8 @@ export const getAllDriveAccounts = async (
           refreshToken: account.refreshToken,
         });
 
-        account.quotaUsed = quota.used;
-        account.quotaTotal = quota.total;
+        account.used = quota.used;
+        account.total = quota.total;
         account.lastFetched = new Date();
 
         await account.save();
@@ -124,8 +124,8 @@ export const getAllDriveAccounts = async (
 
     // 📊 Response mapping
     const accounts = safeAccounts.map((account) => {
-      const used = account.quotaUsed || 0;
-      const total = account.quotaTotal || 0;
+      const used = account.used || 0;
+      const total = account.total || 0;
 
       return {
         _id: account._id,

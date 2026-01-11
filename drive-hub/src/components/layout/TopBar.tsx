@@ -1,8 +1,15 @@
-import { useState } from 'react';
-import { Search, Bell, ChevronDown, HardDrive, Menu, RefreshCw } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useEffect, useState } from "react";
+import {
+  Search,
+  Bell,
+  ChevronDown,
+  HardDrive,
+  Menu,
+  RefreshCw,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,12 +18,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuCheckboxItem,
-} from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { drives } from '@/data/mockData';
-import { getStatusDotClass } from '@/lib/formatters';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { useAuth } from '@/contexts/AuthContext';
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { drives } from "@/data/mockData";
+import {
+  formatDateTime,
+  formatDateTimeAgo,
+  formatRelativeTime,
+  getStatusDotClass,
+} from "@/lib/formatters";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/AuthContext";
+import { useDashboardStates } from "@/queries/dashboard/useDashboard";
+import { dashboardKeys } from "@/api/dashboard/dashboard.keys";
+import { queryClient } from "@/queryClient";
 
 interface TopBarProps {
   selectedDrives: string[];
@@ -24,40 +39,50 @@ interface TopBarProps {
   onMenuClick: () => void;
 }
 
-export function TopBar({ selectedDrives, onDriveSelectionChange, onMenuClick }: TopBarProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isRefreshing, setIsRefreshing] = useState(false);
+export function TopBar({
+  selectedDrives,
+  onDriveSelectionChange,
+  onMenuClick,
+}: TopBarProps) {
+  const [searchQuery, setSearchQuery] = useState("");
   const isMobile = useIsMobile();
   const { user } = useAuth();
+  const { data: drives, isFetching, refetch } = useDashboardStates();
+
   const handleDriveToggle = (driveId: string) => {
-    if (driveId === 'all') {
+    if (driveId === "all") {
       onDriveSelectionChange([]);
       return;
     }
-    
+
     if (selectedDrives.includes(driveId)) {
-      onDriveSelectionChange(selectedDrives.filter(id => id !== driveId));
+      onDriveSelectionChange(selectedDrives.filter((id) => id !== driveId));
     } else {
       onDriveSelectionChange([...selectedDrives, driveId]);
     }
   };
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 2000);
+  const handleRefresh =async () => {
+  
+  await refetch({ throwOnError: false });
   };
 
-  const selectedDriveLabel = selectedDrives.length === 0
-    ? 'All Drives'
-    : selectedDrives.length === 1
-      ? drives.find(d => d.id === selectedDrives[0])?.name
-      : `${selectedDrives.length} Drives`;
+  // const selectedDriveLabel = selectedDrives.length === 0
+  //   ? 'All Drives'
+  //   : selectedDrives.length === 1
+  //     ? drives.find(d => d.id === selectedDrives[0])?.name
+  //     : `${selectedDrives.length} Drives`;
 
   return (
     <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 md:px-6 gap-4">
       {/* Mobile Menu Button */}
       {isMobile && (
-        <Button variant="ghost" size="icon" onClick={onMenuClick} className="shrink-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onMenuClick}
+          className="shrink-0"
+        >
           <Menu className="h-5 w-5" />
         </Button>
       )}
@@ -76,12 +101,12 @@ export function TopBar({ selectedDrives, onDriveSelectionChange, onMenuClick }: 
       {/* Right Section */}
       <div className="flex items-center gap-2 md:gap-4">
         {/* Drive Selector - Hidden on mobile */}
-        {!isMobile && (
+        {/* {!isMobile && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
                 <HardDrive className="h-4 w-4" />
-                <span className="hidden sm:inline">{selectedDriveLabel}</span>
+                <span className="hidden sm:inline">test</span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -98,7 +123,7 @@ export function TopBar({ selectedDrives, onDriveSelectionChange, onMenuClick }: 
                 </div>
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
-              {drives.map((drive) => (
+              {/* {drives.map((drive) => (
                 <DropdownMenuCheckboxItem
                   key={drive.id}
                   checked={selectedDrives.includes(drive.id)}
@@ -113,26 +138,31 @@ export function TopBar({ selectedDrives, onDriveSelectionChange, onMenuClick }: 
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        )}
+        )} */}
 
         {/* Refresh Button */}
         <Button
           variant="ghost"
           size="icon"
           onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="h-9 w-9"
+          disabled={isFetching}
+          className="h-9 border px-1 w-full"
         >
-          <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
+          <RefreshCw
+            className={cn("h-4 w-4", isFetching && "animate-spin")}
+          />
+          {!isFetching && drives[0]?.meta?.fetchedAt
+            ? formatDateTimeAgo(drives[0].meta.fetchedAt.toString())
+            : "-"}
         </Button>
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative h-9 w-9">
+        {/* <Button variant="ghost" size="icon" className="relative h-9 w-9">
           <Bell className="h-4 w-4" />
           <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">
             3
           </span>
-        </Button>
+        </Button> */}
 
         {/* User Menu */}
         <DropdownMenu>
@@ -140,7 +170,12 @@ export function TopBar({ selectedDrives, onDriveSelectionChange, onMenuClick }: 
             <Button variant="ghost" className="gap-2 px-2 h-9">
               <Avatar className="h-7 w-7 md:h-8 md:w-8">
                 <AvatarImage src={user.picture} alt={user.name} />
-                <AvatarFallback className="hover:text-black">{user?.name?.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                <AvatarFallback className="hover:text-black">
+                  {user?.name
+                    ?.split(" ")
+                    .map((n) => n[0])
+                    .join("")}
+                </AvatarFallback>
               </Avatar>
               {!isMobile && (
                 <>
@@ -156,7 +191,9 @@ export function TopBar({ selectedDrives, onDriveSelectionChange, onMenuClick }: 
             <DropdownMenuLabel>
               <div>
                 <p className="font-medium">{user.name}</p>
-                <p className="text-xs text-muted-foreground font-normal">{user.email}</p>
+                <p className="text-xs text-muted-foreground font-normal">
+                  {user.email}
+                </p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -164,7 +201,9 @@ export function TopBar({ selectedDrives, onDriveSelectionChange, onMenuClick }: 
             <DropdownMenuItem>Preferences</DropdownMenuItem>
             <DropdownMenuItem>Billing</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">Sign Out</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive">
+              Sign Out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

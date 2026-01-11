@@ -56,7 +56,7 @@ export interface Drive {
     usagePercentage: number;
     used: number;
   };
-  connectionStatus: "active" | "inactive" | "syncing" | "error" | "expired";
+  connectionStatus: 'critical' | 'warning' | 'healthy' | 'error' | 'inactive';
   lastFetched: string;
 }
 

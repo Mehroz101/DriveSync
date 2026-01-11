@@ -24,7 +24,25 @@ export function formatBytes(bytes: number, decimals = 2): string {
 export function formatDate(dateString: string): string {
   return format(parseISO(dateString), 'MMM d, yyyy');
 }
+export function formatDateTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
 
+  // Calculate the difference in milliseconds
+  const differenceInMs = now.getTime() - date.getTime();
+
+  // Convert milliseconds to total minutes
+  const minutes = Math.round(differenceInMs / (1000 * 60));
+
+  if (minutes < 60) {
+    // If less than an hour, return in minutes
+    return `${minutes} min ago`;
+  } else {
+    // If an hour or more, calculate hours and round
+    const hours = Math.round(minutes / 60);
+    return `${hours} h ago`;
+  }
+}
 /**
  * Format date with time
  */
@@ -36,7 +54,7 @@ export function formatDateTime(dateString: string): string {
  * Format relative time (e.g., "2 hours ago")
  */
 export function formatRelativeTime(dateString: string): string {
-  return formatDistanceToNow(parseISO(dateString), { addSuffix: true });
+  return formatDistanceToNow(parseISO(dateString), { addSuffix: true ,});
 }
 
 /**

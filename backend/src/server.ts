@@ -13,7 +13,14 @@ import emailAuthRoutes from "./routes/auth.routes.js";
 import dashboardRoutes from "./routes/dashboard.router.js";
 import searchRoutes from "./routes/search.routes.js";
 import { errorHandler } from "./middleware/error.middleware.js";
+import connectDB from "./auth/db.js";
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err);
+});
 
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED REJECTION:", reason);
+});
 const app = express();
 
 app.use(cors({ origin: true, credentials: true }));
@@ -34,11 +41,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI as string).then(() => {
-  console.log("MongoDB connected");
-}).catch(err => {
-  console.error("MongoDB connection error:", err);
-});
+connectDB()
 
 app.use("/test", (req,res) => {
   res.send("Server is running");

@@ -46,6 +46,7 @@ export default function Drives() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { data: drivesResponse, isLoading } = useDriveAccounts();
   const drives = drivesResponse?.accounts || [];
+
  
 
   const handleRefreshDrive = async (driveId: string) => {
@@ -137,7 +138,7 @@ export default function Drives() {
               key={drive._id}
               className={cn(
                 "rounded-xl border bg-card p-4 md:p-6 shadow-card transition-shadow hover:shadow-card-hover",
-                drive.connectionStatus === "expired" &&
+                drive.connectionStatus === "inactive" &&
                   "border-warning/30 bg-warning/5"
               )}
             >
@@ -218,7 +219,7 @@ export default function Drives() {
                   </div>
                 </div>
 
-                {drive.connectionStatus === "expired" && (
+                {drive.connectionStatus === "inactive" && (
                   <Button
                     variant="outline"
                     size="sm"
