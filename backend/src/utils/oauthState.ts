@@ -8,19 +8,22 @@ export interface OAuthState {
   csrfToken: string;
   timestamp: number;
   nonce: string;
+  meta?: Record<string, string>;
 }
 
 /**
  * Generate a cryptographically secure OAuth state parameter
  * @param userId - The authenticated user's ID
+ * @param meta - Optional additional data to include (e.g. { driveId })
  * @returns Base64-encoded signed state string
  */
-export function generateOAuthState(userId: string): string {
+export function generateOAuthState(userId: string, meta?: Record<string, string>): string {
   const state: OAuthState = {
     userId,
     csrfToken: crypto.randomBytes(32).toString('hex'),
     timestamp: Date.now(),
     nonce: crypto.randomBytes(16).toString('hex'),
+    meta,
   };
   console.log("inside generateOAuth",state)
 

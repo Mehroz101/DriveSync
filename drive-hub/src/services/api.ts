@@ -94,10 +94,10 @@ export async function disconnectDrive(id: string): Promise<ApiResponse<null>> {
 
 export async function refreshDrive(id: string): Promise<ApiResponse<Drive>> {
   await delay(2000);
-  const drive = drives.find(d => d.id === id);
+  const drive = drives.find(d => d._id === id);
   if (!drive) {
     return {
-      data: null as any,
+      data: null,
       success: false,
       message: 'Drive not found',
     };

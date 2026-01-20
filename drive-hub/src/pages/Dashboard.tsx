@@ -20,14 +20,14 @@ interface AggregatedStats {
 }
 
 function aggregateDriveStats(drives: DashboardStats[]): AggregatedStats {
-  return drives.reduce(
+  return drives?.reduce(
     (acc, drive) => ({
-      totalFiles: acc.totalFiles + drive.stats.totalFiles,
-      totalStorageUsed: acc.totalStorageUsed + drive.storage.usedInDrive,
+      totalFiles: acc.totalFiles + drive?.stats?.totalFiles,
+      totalStorageUsed: acc.totalStorageUsed + drive?.storage?.usedInDrive,
       connectedDrives: acc.connectedDrives + 1,
-      duplicateFiles: acc.duplicateFiles + drive.stats.duplicateFiles,
+      duplicateFiles: acc.duplicateFiles + drive?.stats?.duplicateFiles,
       duplicateSpace: acc.duplicateSpace, // Note: You'll need to calculate this based on your logic
-      totalStorage: acc.totalStorage + drive.storage.total,
+      totalStorage: acc.totalStorage + drive?.storage?.total,
     }),
     {
       totalFiles: 0,

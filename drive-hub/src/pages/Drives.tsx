@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils";
 import type { Drive } from "@/types";
 import AddDriveDialog from "@/components/dashboard/AddDriveDialog";
 import { useDriveAccountStats } from "@/queries/drive/useDriveAccounts";
+import { useReconnectDrive } from "@/mutations/drive/useReconnectDrive";
 
 export default function Drives() {
   // const [drives, setDrives] = useState<Drive[]>([]);
@@ -48,21 +49,39 @@ export default function Drives() {
   const { data: drivesResponse, isLoading } = useDriveAccountStats();
   const drives = drivesResponse || [];
 
- 
+  const { mutateAsync } = useReconnectDrive();
+  const handleAddDrive = async (driveId: string) => {
+    try {
+      const response = await mutateAsync(driveId);
 
-  const handleRefreshDrive = async (driveId: string) => {
-    // setRefreshingDrive(driveId);
-    // const response = await refreshDrive(driveId);
-    // if (response.success && drivesResponse) {
-    //   // Update the accounts array with the refreshed drive
-    //   const updatedAccounts = drivesResponse.accounts.map((d) => 
-    //     d._id === driveId ? response.data : d
-    //   );
-    //   // Create new response object with updated accounts
-    //   // We can't directly update the query cache here, so we'll need to refetch
-    // }
-    // setRefreshingDrive(null);
+      // If your mutation returns nothing, remove the following lines.
+      // If it should return an object with authUrl, ensure your mutation is set up to do so.
+      // Example fallback: fetch authUrl from another source or show an error.
+      if (!response || typeof response !== "object" || !("authUrl" in response)) {
+        throw new Error("Missing OAuth URL");
+      }
+      const { authUrl } = response as { authUrl: string };
+
+      // 🔐 Full redirect to backend OAuth flow
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error("Add Drive failed:", error);
+      alert("Unable to connect Google Drive. Please try again.");
+    }
   };
+  // const handleRefreshDrive = async (driveId: string) => {
+  //   setRefreshingDrive(driveId);
+  //   const response = await refreshDrive(driveId);
+  //   if (response.success && drivesResponse) {
+  //     // Update the accounts array with the refreshed drive
+  //     const updatedAccounts = drivesResponse.accounts.map((d) => 
+  //       d._id === driveId ? response.data : d
+  //     );
+  //     // Create new response object with updated accounts
+  //     // We can't directly update the query cache here, so we'll need to refetch
+  //   }
+  //   setRefreshingDrive(null);
+  // };
 
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
@@ -139,8 +158,8 @@ export default function Drives() {
               key={drive._id}
               className={cn(
                 "rounded-xl border bg-card p-4 md:p-6 shadow-card transition-shadow hover:shadow-card-hover",
-                drive.connectionStatus === "inactive" &&
-                  "border-warning/30 bg-warning/5"
+                drive.connectionStatus === "revoked" &&
+                  "border-warning opacity-75"
               )}
             >
               <div className="flex items-start justify-between gap-3">
@@ -175,7 +194,7 @@ export default function Drives() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
                       className="gap-2"
-                      onClick={() => handleRefreshDrive(drive._id)}
+                      onClick={() => handleAddDrive(drive._id)}
                       disabled={refreshingDrive === drive._id}
                     >
                       <RefreshCw
@@ -232,10 +251,11 @@ export default function Drives() {
                   </div>
                 </div>
 
-                {drive.connectionStatus === "inactive" && (
+                {drive.connectionStatus === "revoked" && (
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => handleAddDrive(drive._id)}
                     className="w-full gap-2 border-warning text-warning hover:bg-warning hover:text-warning-foreground"
                   >
                     <RefreshCw className="h-4 w-4" />

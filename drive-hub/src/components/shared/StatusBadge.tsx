@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-type Status = "active" | "error" | "inactive";
+type Status = "active" | "error" | "revoked";
 
 interface StatusBadgeProps {
   status: Status;
@@ -11,7 +11,7 @@ interface StatusBadgeProps {
 const statusConfig: Record<Status, { label: string }> = {
   active: { label: "active" },
   error: { label: "error" },
-  inactive: { label: "inactive" },
+  revoked: { label: "revoked" },
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
@@ -22,15 +22,15 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
       className={cn(
         "border-transparent",
         status === "active" &&
-          "bg-success text-success-foreground hover:bg-success/80",
+          "bg-success/10 text-success hover:bg-success/20",
+        status === "revoked" &&
+          "bg-warning/10 text-warning hover:bg-warning/20",
         status === "error" &&
-          "bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        status === "inactive" &&
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-destructive/10 text-destructive hover:bg-destructive/20",
         className
       )}
     >
-      {config.label}
+      {config?.label}
     </Badge>
   );
 }

@@ -132,21 +132,21 @@ export function TopBar({
                 </div>
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
-              {dashboardStats.map((drive) => (
+              {dashboardStats?.map((drive) => (
                 <DropdownMenuCheckboxItem
-                  key={drive._id}
-                  checked={selectedDrives.includes(drive._id)}
-                  onCheckedChange={() => handleDriveToggle(drive._id)}
+                  key={drive?._id}
+                  checked={selectedDrives.includes(drive?._id)}
+                  onCheckedChange={() => handleDriveToggle(drive?._id)}
                 >
                   <div className="flex items-center gap-2 w-full">
                     <div
-                      className={getStatusDotClass(drive.connectionStatus)}
+                      className={getStatusDotClass(drive?.connectionStatus)}
                     />
                     <span className="flex-1 truncate">
-                      {drive.owner.displayName}
+                      {drive?.owner.displayName}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {drive.owner.emailAddress.split("@")[0]}
+                      {drive?.owner.emailAddress.split("@")[0]}
                     </span>
                   </div>
                 </DropdownMenuCheckboxItem>
@@ -169,7 +169,7 @@ export function TopBar({
             )}
           />
           {(!isFetching || !syncAllIsFetching) && dashboardStats[0]?.meta?.fetchedAt
-            ? formatDateTimeAgo(drives[0].meta.fetchedAt.toString())
+            ? formatDateTimeAgo(drives[0]?.meta?.fetchedAt.toString())
             : "-"}
         </Button>
 

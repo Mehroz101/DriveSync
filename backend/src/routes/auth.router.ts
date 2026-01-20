@@ -83,6 +83,27 @@ router.post("/add-account", authenticateToken, async (req:AuthenticatedRequest, 
   }
 });
 
+// New: initiate reconnect for an existing Drive account by driveId
+router.post(
+  "/reconnect/:driveId",
+  authenticateToken,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.userId!;
+      const { driveId } = req.params;
+      if (!driveId) return res.status(400).json({ error: 'driveId required' });
+
+      // include driveId in signed state meta so callback knows which account to update
+      const state = generateOAuthState(userId, { driveId });
+      const authUrl = `${process.env.BACKEND_URL}/api/auth/add-drive-account?state=${state}`;
+
+      res.json({ authUrl });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.get(
   "/add-drive-account",
   (req: Request, res: Response, next: NextFunction) => {
@@ -148,29 +169,56 @@ router.get(
 
           const userId = state.userId;
           const { profile, accessToken, refreshToken } = payload;
-          console.log("profile",profile)
-          
-          const driveaccount = await driveAccount.findOneAndUpdate(
-            {
-              userId,
-              googleId: profile.id,
-            },
-            {
-              userId,
-              googleId: profile.id,
-              name: profile.displayName || "",
-              email: profile.emails?.[0]?.value || "",
-              accessToken,
-              refreshToken,
-              profileImg: profile.photos?.[0]?.value || "",
-              scopes: [
-                "profile",
-                "email",
-                "https://www.googleapis.com/auth/drive.readonly",
-              ],
-            },
-            { upsert: true, new: true }
-          );
+
+          // If this is a reconnect flow, state.meta.driveId will be set
+          const reconnectDriveId = state.meta?.driveId;
+
+          let driveaccount;
+          if (reconnectDriveId) {
+            // Update the existing DriveAccount by ID (do not change owner/userId)
+            driveaccount = await driveAccount.findByIdAndUpdate(
+              reconnectDriveId,
+              {
+                googleId: profile.id,
+                name: profile.displayName || "",
+                email: profile.emails?.[0]?.value || "",
+                accessToken,
+                refreshToken,
+                connectionStatus: "active",
+                profileImg: profile.photos?.[0]?.value || "",
+                scopes: [
+                  "profile",
+                  "email",
+                  "https://www.googleapis.com/auth/drive.readonly",
+                ],
+              },
+              { new: true }
+            );
+          } else {
+            // Normal add-account flow (upsert by userId + googleId)
+            driveaccount = await driveAccount.findOneAndUpdate(
+              {
+                userId,
+                googleId: profile.id,
+              },
+              {
+                userId,
+                googleId: profile.id,
+                name: profile.displayName || "",
+                email: profile.emails?.[0]?.value || "",
+                accessToken,
+                refreshToken,
+                connectionStatus : "active",
+                profileImg: profile.photos?.[0]?.value || "",
+                scopes: [
+                  "profile",
+                  "email",
+                  "https://www.googleapis.com/auth/drive.readonly",
+                ],
+              },
+              { upsert: true, new: true }
+            );
+          }
 
           console.log(
             `Drive account linked → user=${userId}, google=${profile.id}`

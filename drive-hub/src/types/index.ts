@@ -177,7 +177,7 @@ export interface FileFilter {
 // Stats Types
 export interface DashboardStats {
   _id: string;
-  connectionStatus: "active" | "inactive" | "error";
+  connectionStatus: "active" | "revoked" | "error";
   owner: {
     displayName: string;
     emailAddress:string;

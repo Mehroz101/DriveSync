@@ -10,6 +10,15 @@ export const addGoogleDriveAccount = async (): Promise<{ authUrl: string }> => {
     console.log(error);
   }
 };
+export const reconnectGoogleDriveAccount = async (driveId: string): Promise<{ authUrl: string }> => {
+  try {
+    const response = await apiClient.post("/auth/reconnect/"+driveId);
+    console.log(response);
+    return response.data;
+  } catch (error) {
+    console.log(error);
+  }
+};
 export const getGoogleDriveAccounts = async (): Promise<{
   count: number;
   accounts: Drive[];

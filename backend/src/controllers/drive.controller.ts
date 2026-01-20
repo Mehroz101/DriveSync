@@ -257,7 +257,7 @@ export const syncDrive = async (
 export const driveStats = async (req:AuthenticatedRequest,res:Response)=>{
     try {
         const user = await getUserById(req.userId!)
-        const driveAccounts = await driveAccount.find({ userId: req.userId!, connectionStatus:"active" });
+        const driveAccounts = await driveAccount.find({ userId: req.userId!});
         // const stats = await Promise.allSettled(driveAccounts.map((account) => fetchDriveStats(account)));
         const stats = await Promise.allSettled(driveAccounts.map((account) => fetchDriveStatsFromDatabase(account)));
         const filteredStats = stats.filter((stat) => stat.status === "fulfilled").map((stat) => stat.value);

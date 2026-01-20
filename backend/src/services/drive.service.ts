@@ -118,28 +118,55 @@ export const fetchDriveQuotaFromGoogle = async (driveAccount: any) => {
   };
 };
 const fetchDriveAbout = async (driveAccount: any) => {
-  const auth = createGoogleAuthClient(driveAccount);
-  const drive = google.drive({ version: "v3", auth });
+  try {
+    const auth = createGoogleAuthClient(driveAccount);
+    const drive = google.drive({ version: "v3", auth });
 
-  const { data } = await drive.about.get({ fields: "user, storageQuota" });
+    const { data } = await drive.about.get({ fields: "user, storageQuota" });
 
-  const quota = data.storageQuota;
-  console.log(quota)
-  return {
-    user: data.user,
-    storage: {
-      total: quota?.limit ? Number(quota.limit) : null,
-      used: quota?.usage ? Number(quota.usage) : null,
-      usedInDrive: quota?.usageInDrive ? Number(quota.usageInDrive) : null,
-      usedInTrash: quota?.usageInDriveTrash
-        ? Number(quota.usageInDriveTrash)
-        : null,
-      remaining:
-        quota?.limit && quota?.usage
-          ? Number(quota.limit) - Number(quota.usage)
+    const quota = data.storageQuota;
+    console.log({quota})
+    return {
+      user: data.user,
+      storage: {
+        total: quota?.limit ? Number(quota.limit) : null,
+        used: quota?.usage ? Number(quota.usage) : null,
+        usedInDrive: quota?.usage ? Number(quota.usage) : null,
+        usedInTrash: quota?.usageInDriveTrash
+          ? Number(quota.usageInDriveTrash)
           : null,
-    },
-  };
+        remaining:
+          quota?.limit && quota?.usage
+            ? Number(quota.limit) - Number(quota.usage)
+            : null,
+      },
+    };
+  } catch (error: any) {
+    console.error('fetchDriveAbout error:', error?.response?.data || error);
+
+    const errData = error?.response?.data;
+    const isInvalidGrant =
+      errData?.error === 'invalid_grant' ||
+      (errData?.error_description && String(errData.error_description).toLowerCase().includes('revoked')) ||
+      String(error?.message).toLowerCase().includes('invalid_grant');
+
+    if (isInvalidGrant) {
+      try {
+        await DriveAccount.findByIdAndUpdate(driveAccount._id, {
+          connectionStatus: 'revoked',
+          accessToken: null,
+          refreshToken: null,
+        });
+        console.warn(`Drive account ${driveAccount._id} marked revoked due to invalid_grant`);
+      } catch (dbErr) {
+        console.error('Failed to update DriveAccount status after invalid_grant:', dbErr);
+      }
+      // Rethrow a clear error for upstream handling
+      throw new Error('refresh_token_revoked');
+    }
+
+    throw error;
+  }
 };
 
 const fetchAllFiles = async (driveAccount: any) => {
@@ -302,38 +329,15 @@ export const updateDriveData = async (driveAccount: any) => {
     console.log(error)
   }
 };
-export interface DashboardStats {
 
-  owner: {
-    displayName: string;
-    emailAddress:string;
-    photoLink:string;
-    me:boolean
-  };
-  storage: {
-    total: number;
-    used: number;
-    usedInDrive: number;
-    usedInTrash: number;
-    remaining: number;
-  };
-  stats: {
-    totalFiles: number;
-    totalFolders: number;
-    trashedFiles: number;
-    duplicateFiles: number;
-  };
-  meta: {
-    fetchedAt: Date;
-    source: string;
-  };
-}
 
 export const fetchDriveStatsFromDatabase = async (driveAccount: any)=>{
   try {
     const account = await DriveAccount.findById(driveAccount._id);
     if(!account) return 
     const res = {
+      _id: account._id,
+      connectionStatus: account.connectionStatus,
       owner:{
         displayName: account.name,
         emailAddress: account.email,
@@ -362,4 +366,30 @@ export const fetchDriveStatsFromDatabase = async (driveAccount: any)=>{
   } catch (error) {
     
   }
+}
+export interface DashboardStats {
+
+  owner: {
+    displayName: string;
+    emailAddress:string;
+    photoLink:string;
+    me:boolean
+  };
+  storage: {
+    total: number;
+    used: number;
+    usedInDrive: number;
+    usedInTrash: number;
+    remaining: number;
+  };
+  stats: {
+    totalFiles: number;
+    totalFolders: number;
+    trashedFiles: number;
+    duplicateFiles: number;
+  };
+  meta: {
+    fetchedAt: Date;
+    source: string;
+  };
 }

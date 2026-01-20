@@ -57,42 +57,41 @@ export function DrivesSummary({ drives }: DrivesSummaryProps) {
       ) : (
         <>
           <div className="divide-y">
-            {displayDrives.map((drive) => {
+            {displayDrives && displayDrives.map((drive) => {
               const storagePercentage =
-                (drive.storage.used / drive.storage.total) * 100;
+                (drive?.storage.used / drive?.storage.total) * 100;
               const getBarColor = () => {
                 if (storagePercentage > 90) return "bg-destructive";
                 if (storagePercentage > 75) return "bg-warning";
                 else return "gradient-primary";
               };
-
               return (
                 <div
-                  key={drive.owner.emailAddress}
+                  key={drive?.owner.emailAddress}
                   className="flex items-center gap-4 px-6 py-4 transition-colors hover:bg-muted/30"
                 >
                   <Avatar className="h-10 w-10 border border-border">
                     <AvatarImage
-                      src={drive.owner.photoLink}
-                      alt={drive.owner.displayName}
+                      src={drive?.owner.photoLink}
+                      alt={drive?.owner.displayName}
                     />
                     <AvatarFallback>
-                      {drive.owner.displayName.slice(0, 2).toUpperCase()}
+                      {drive?.owner.displayName.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-medium truncate">
-                        {drive.owner.displayName}
+                        {drive?.owner.displayName}
                       </p>
                       <div
                         className={`
                           flex max-sm:hidden  items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium
                           ${
-                            drive.stats.duplicateFiles > 100
+                            drive?.stats.duplicateFiles > 100
                               ? "bg-destructive/10 text-destructive"
-                              : drive.stats.duplicateFiles > 20
+                              : drive?.stats.duplicateFiles > 20
                               ? "bg-warning/10 text-warning"
                               : "bg-muted text-muted-foreground"
                           }
@@ -102,7 +101,25 @@ export function DrivesSummary({ drives }: DrivesSummaryProps) {
                         <Copy className="h-3 max-sm:hidden w-3" />
 
                         <span className="max-sm:hidden">
-                          {drive.stats.duplicateFiles}
+                          {drive?.stats.duplicateFiles}
+                        </span>
+                      </div>
+                      <div
+                        className={`
+                          flex max-sm:hidden  items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium
+                          ${
+                            drive?.connectionStatus === "active"
+                              ? "bg-success/10 text-success"
+                              : drive?.connectionStatus === "revoked"
+                              ? "bg-warning/10 text-warning"
+                              : "bg-destructive/10 text-destructive"
+                          }
+                        `}
+                        title="drive status"
+                      >
+
+                        <span className="max-sm:hidden">
+                          {drive?.connectionStatus}
                         </span>
                       </div>
                       <div
@@ -114,32 +131,32 @@ export function DrivesSummary({ drives }: DrivesSummaryProps) {
                       >
                         <Copy className="h-3 max-sm:hidden w-3" />
                         <span className="sm:hidden text-nowrap">
-                          {formatBytes(drive.storage.used)}
+                          {formatBytes(drive?.storage.used)}
                         </span>
                         <span className="max-sm:hidden">
-                          {drive.stats.duplicateFiles}
+                          {drive?.stats.duplicateFiles}
                         </span>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                      {drive.owner.emailAddress}
+                      {drive?.owner.emailAddress}
                     </p>
                   </div>
 
                   <div className="w-32 hidden sm:block">
                     <StorageBar
-                      used={drive.storage.used}
-                      total={drive.storage.total}
+                      used={drive?.storage.used}
+                      total={drive?.storage.total}
                       size="sm"
                     />
                   </div>
 
                   <div className="text-right hidden md:block">
                     <p className="text-sm font-medium">
-                      {formatBytes(drive.storage.used)}
+                      {formatBytes(drive?.storage.used)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {drive.stats.totalFiles} files
+                      {drive?.stats.totalFiles} files
                     </p>
                   </div>
                 </div>
