@@ -26,22 +26,38 @@ export function formatDate(dateString: string): string {
 }
 export function formatDateTimeAgo(dateString: string): string {
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "";
+
   const now = new Date();
+  let seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (seconds < 0) seconds = 0;
 
-  // Calculate the difference in milliseconds
-  const differenceInMs = now.getTime() - date.getTime();
-
-  // Convert milliseconds to total minutes
-  const minutes = Math.round(differenceInMs / (1000 * 60));
-
-  if (minutes < 60) {
-    // If less than an hour, return in minutes
-    return `${minutes} min ago`;
-  } else {
-    // If an hour or more, calculate hours and round
-    const hours = Math.round(minutes / 60);
-    return `${hours} h ago`;
+  if (seconds < 60) {
+    return `${seconds} sec${seconds === 1 ? "" : "s"} ago`;
   }
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} min${minutes === 1 ? "" : "s"} ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} h${hours === 1 ? "" : ""} ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  if (days < 30) {
+    return `${days} d${days === 1 ? "" : ""} ago`;
+  }
+
+  const months = Math.floor(days / 30);
+  if (months < 12) {
+    return `${months} mo${months === 1 ? "" : "s"} ago`;
+  }
+
+  const years = Math.floor(days / 365);
+  return `${years} y${years === 1 ? "" : "s"} ago`;
 }
 /**
  * Format date with time

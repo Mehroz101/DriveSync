@@ -19,13 +19,9 @@ export const reconnectGoogleDriveAccount = async (driveId: string): Promise<{ au
     console.log(error);
   }
 };
-export const getGoogleDriveAccounts = async (): Promise<{
-  count: number;
-  accounts: Drive[];
-}> => {
+export const getGoogleDriveAccounts = async (): Promise<Drive[]> => {
   try {
     const response = await apiClient.get("/drive/get-all-drives");
-    console.log(response);
     return response.data;
   } catch (error) {
     console.log(error);

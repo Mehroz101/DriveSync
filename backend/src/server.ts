@@ -10,6 +10,7 @@ import driveRoutes from "./routes/drive.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
 import googleAuthRoutes from "./routes/auth.router.js";
 import emailAuthRoutes from "./routes/auth.routes.js";
+import fileRoutes from "./routes/file.routes.js";
 import searchRoutes from "./routes/search.routes.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import connectDB from "./auth/db.js";
@@ -47,6 +48,7 @@ app.use("/test", (req,res) => {
 });
 app.use("/api/email-auth", emailAuthRoutes); //check
 app.use("/api/drive", driveRoutes); //partial check
+app.use("/api/file", fileRoutes); 
 // Google OAuth routes
 app.use("/api/auth", googleAuthRoutes);
 // Email/password authentication routes

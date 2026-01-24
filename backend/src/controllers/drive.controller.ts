@@ -10,7 +10,6 @@ import {
   fetchDriveStatsFromDatabase
 } from "../services/drive.service.js";
 import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
-import OAuthState from "../models/OAuthState.js";
 import { getUserById } from "../services/auth.service.js";
 import driveAccount from "../models/driveAccount.js";
 import { generateOAuthState } from "../utils/oauthState.js";
@@ -105,10 +104,7 @@ export const getAllDriveAccounts = async (
 
         if (!isStale) return account;
 
-        const quota = await fetchDriveQuotaFromGoogle({
-          accessToken: account.accessToken,
-          refreshToken: account.refreshToken,
-        });
+        const quota = await fetchDriveQuotaFromGoogle(account);
 
         account.used = quota.used;
         account.total = quota.total;
@@ -222,10 +218,9 @@ export const syncAllDrivesData = async (
   next: NextFunction
 ) => {
   try {
-    const user = await getUserById(req.userId!);
     const driveAccounts = await driveAccount.find({
       userId: req.userId!,
-      connectionStatus: "active",
+    
     });
     const stats = await Promise.allSettled(
       driveAccounts.map((account) => fetchDriveStats(account))

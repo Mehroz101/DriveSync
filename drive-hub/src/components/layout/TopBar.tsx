@@ -22,9 +22,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { drives } from "@/data/mockData";
 import {
-  formatDateTime,
   formatDateTimeAgo,
-  formatRelativeTime,
   getStatusDotClass,
 } from "@/lib/formatters";
 import { useIsMobile } from "@/hooks/use-mobile";

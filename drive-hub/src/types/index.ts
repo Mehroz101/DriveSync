@@ -9,12 +9,13 @@ export interface User {
 }
 // types/drive.ts or wherever you keep your types
 export interface DriveOwner {
-  kind: string; // 'drive#user'
-  displayName: string;
-  photoLink: string;
-  me: boolean;
-  permissionId: string;
-  emailAddress: string;
+  kind?: string; // optional: 'drive#user'
+  displayName?: string;
+  photoLink?: string;
+  me?: boolean;
+  permissionId?: string;
+  emailAddress?: string;
+  _id?: string; // backend sometimes returns an internal id
 }
 
 export interface DriveStorage {
@@ -56,23 +57,40 @@ export interface Drive {
     usagePercentage: number;
     used: number;
   };
-  connectionStatus: 'critical' | 'warning' | 'healthy' | 'error' | 'inactive';
+  connectionStatus: "active" | "revoked" | "error";
   lastFetched: string;
 }
 
-// File Types
+// Normalized DriveFile shape (backend may send _id, driveAccountId, nested drive info, owners, etc.)
 export interface DriveFile {
-  id: string;
+  _id?: string;
+  googleFileId?: string;
+  driveAccountId?: string;
+  driveId?: string;
+  driveName?: string;
+  // optional nested drive info returned by backend
+  drive?: {
+    connectionStatus?: 'active' | 'revoked' | 'error' | 'inactive' | string;
+    email?: string;
+    name?: string;
+  };
+
   name: string;
-  driveId: string;
-  driveName: string;
   size: number;
-  type: FileType;
-  mimeType: string;
-  lastModified: string;
-  owner: string;
-  isDuplicate: boolean;
+  type?: FileType;
+  mimeType?: string;
+  modifiedTime?: string;
+  lastModified?: string; // alias
+  owner?: string;
+  owners?: DriveOwner[];
+  webViewLink?: string;
+  webContentLink?: string;
+  iconLink?: string;
+  isDuplicate?: boolean;
   thumbnailUrl?: string;
+  shared?: boolean;
+  starred?: boolean;
+  trashed?: boolean;
 }
 
 export type FileType =

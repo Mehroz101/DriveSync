@@ -71,17 +71,21 @@ router.get(
  * IMPORTANT: Requires authentication - userId from token, not query parameter
  */
 
-router.post("/add-account", authenticateToken, async (req:AuthenticatedRequest, res:Response, next:NextFunction) => {
-  try {
-    const userId = req.userId!;
-    const state = generateOAuthState(userId);
-    const authUrl = `${process.env.BACKEND_URL}/api/auth/add-drive-account?state=${state}`;
+router.post(
+  "/add-account",
+  authenticateToken,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.userId!;
+      const state = generateOAuthState(userId);
+      const authUrl = `${process.env.BACKEND_URL}/api/auth/add-drive-account?state=${state}`;
 
-    res.json({ authUrl });
-  } catch (error) {
-    next(error);
+      res.json({ authUrl });
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 // New: initiate reconnect for an existing Drive account by driveId
 router.post(
@@ -91,10 +95,15 @@ router.post(
     try {
       const userId = req.userId!;
       const { driveId } = req.params;
-      if (!driveId) return res.status(400).json({ error: 'driveId required' });
+      if (!driveId) return res.status(400).json({ error: "driveId required" });
+      const drive = await driveAccount.findById(driveId);
+
+      if (!drive) {
+        return res.status(404).json({ error: "Drive account not found" });
+      }
 
       // include driveId in signed state meta so callback knows which account to update
-      const state = generateOAuthState(userId, { driveId });
+      const state = generateOAuthState(userId, { driveId, email: drive.email });
       const authUrl = `${process.env.BACKEND_URL}/api/auth/add-drive-account?state=${state}`;
 
       res.json({ authUrl });
@@ -108,8 +117,11 @@ router.get(
   "/add-drive-account",
   (req: Request, res: Response, next: NextFunction) => {
     // Get userId from authenticated token, not from query parameter
-    console.log("state",req.query.state)
-      const state = req.query.state as string;
+    console.log("state", req.query.state);
+    const state = req.query.state as string;
+    const parsedState = validateOAuthState(state);
+    const loginHint = parsedState?.meta?.email;
+    const isReconnect = Boolean(parsedState?.meta?.driveId);
 
     // Generate cryptographically signed state with authenticated userId
 
@@ -120,7 +132,9 @@ router.get(
         "https://www.googleapis.com/auth/drive.readonly",
       ],
       accessType: "offline" as const,
-      prompt: "consent" as const,
+      prompt: isReconnect ? "consent" : "select_account",
+      login_hint: loginHint,
+      includeGrantedScopes: true,
       session: false,
       state, // Pass signed state to OAuth
     } as any)(req, res, next);
@@ -139,9 +153,7 @@ router.get(
       async (err: Error | null, payload: any) => {
         if (err || !payload) {
           console.error("Add-drive OAuth failed:", err);
-          return res.redirect(
-            `http://localhost:5173/drives`
-          );
+          return res.redirect(`http://localhost:5173/drives`);
         }
 
         try {
@@ -208,7 +220,7 @@ router.get(
                 email: profile.emails?.[0]?.value || "",
                 accessToken,
                 refreshToken,
-                connectionStatus : "active",
+                connectionStatus: "active",
                 profileImg: profile.photos?.[0]?.value || "",
                 scopes: [
                   "profile",
@@ -224,14 +236,10 @@ router.get(
             `Drive account linked → user=${userId}, google=${profile.id}`
           );
 
-          return res.redirect(
-            `http://localhost:5173/drives`
-          );
+          return res.redirect(`http://localhost:5173/drives`);
         } catch (error: any) {
           console.error("Drive account save failed:", error);
-          return res.redirect(
-            `http://localhost:5173/drives`
-          );
+          return res.redirect(`http://localhost:5173/drives`);
         }
       }
     )(req, res, next);
@@ -247,12 +255,10 @@ router.post("/logout", (req: Request, res: Response) => {
   req.logout((err) => {
     if (err) {
       console.error("Error during logout:", err);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Could not log out, please try again.",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Could not log out, please try again.",
+      });
     }
     // Clear session cookies
     res.clearCookie("session");
