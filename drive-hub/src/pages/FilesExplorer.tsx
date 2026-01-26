@@ -12,6 +12,9 @@ import {
   Star,
   Share2,
   Users,
+  Calendar,
+  Filter,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -59,21 +62,13 @@ import { cn } from "@/lib/utils";
 
 import type { DriveFile, FileType } from "@/types";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { deleteFiles } from "@/services/api";
+import { useDeleteFiles } from "@/mutations/files/useDeleteFiles";
 
 /* -----------------------------------
  CONFIG
 ------------------------------------ */
 
-const FILE_TYPES: FileType[] = [
-  "document",
-  "spreadsheet",
-  "presentation",
-  "image",
-  "video",
-  "pdf",
-  "archive",
-  "other",
-];
 export const MIME_FILTER_MAP: Record<string, string[]> = {
   document: [
     "application/vnd.google-apps.document",
@@ -154,6 +149,26 @@ export const FILE_FILTER_CATEGORIES: { label: string; value: string }[] = [
   { label: "Other", value: "other" },
 ];
 
+// Size filter options (in bytes)
+export const SIZE_FILTER_OPTIONS: { label: string; value: string; min?: number; max?: number }[] = [
+  { label: "Any Size", value: "all" },
+  { label: "< 1 MB", value: "small", max: 1024 * 1024 },
+  { label: "1 - 10 MB", value: "medium", min: 1024 * 1024, max: 10 * 1024 * 1024 },
+  { label: "10 - 100 MB", value: "large", min: 10 * 1024 * 1024, max: 100 * 1024 * 1024 },
+  { label: "100 MB - 1 GB", value: "xlarge", min: 100 * 1024 * 1024, max: 1024 * 1024 * 1024 },
+  { label: "> 1 GB", value: "huge", min: 1024 * 1024 * 1024 },
+];
+
+// Date preset options
+export const DATE_PRESETS: { label: string; value: string; days?: number }[] = [
+  { label: "Any Time", value: "all" },
+  { label: "Today", value: "today", days: 1 },
+  { label: "Last 7 days", value: "week", days: 7 },
+  { label: "Last 30 days", value: "month", days: 30 },
+  { label: "Last 90 days", value: "quarter", days: 90 },
+  { label: "Last year", value: "year", days: 365 },
+];
+
 const PAGE_SIZE = 50;
 
 /* -----------------------------------
@@ -171,7 +186,14 @@ export default function FilesExplorer() {
   // multi-select types: empty array = all types
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
 
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  // New filters
+  const [selectedTags, setSelectedTags] = useState<string[]>([]); // shared, starred, trashed
+  const [selectedSize, setSelectedSize] = useState("all");
+  const [selectedDatePreset, setSelectedDatePreset] = useState("all");
+
+  const [selectedFiles, setSelectedFiles] = useState<
+    { driveId: string; fileId: string }[]
+  >([]);
   const [page, setPage] = useState(1);
 
   // Build mimeTypes array for the API from selectedTypes. Return undefined for "all" (no filter).
@@ -185,7 +207,7 @@ export default function FilesExplorer() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedDrive, selectedTypes]);
+  }, [selectedDrive, selectedTypes, selectedTags, selectedSize, selectedDatePreset]);
 
   useEffect(() => {
     const debounce = setTimeout(() => {
@@ -197,22 +219,50 @@ export default function FilesExplorer() {
 
   /* ---------- Query Params ---------- */
 
-  const queryParams = useMemo(
-    () => ({
+  const queryParams = useMemo(() => {
+    // Build size filter values
+    const sizeOption = SIZE_FILTER_OPTIONS.find((s) => s.value === selectedSize);
+    const sizeFilter = sizeOption && selectedSize !== "all" 
+      ? { sizeMin: sizeOption.min, sizeMax: sizeOption.max }
+      : {};
+
+    // Build date filter (modifiedAfter)
+    const datePreset = DATE_PRESETS.find((d) => d.value === selectedDatePreset);
+    let dateFilter = {};
+    if (datePreset && selectedDatePreset !== "all" && datePreset.days) {
+      const date = new Date();
+      date.setDate(date.getDate() - datePreset.days);
+      dateFilter = { modifiedAfter: date.toISOString() };
+    }
+
+    return {
       page,
       limit: PAGE_SIZE,
       search: searchValue || undefined,
       driveId: selectedDrive !== "all" ? selectedDrive : undefined,
       driveStatus: "active",
       mimeTypes: buildMimeFilterPayload(selectedTypes),
-    }),
-    [page, searchValue, selectedDrive, selectedTypes]
-  );
+      // Tag filters
+      shared: selectedTags.includes("shared") ? true : undefined,
+      starred: selectedTags.includes("starred") ? true : undefined,
+      trashed: selectedTags.includes("trashed") ? true : undefined,
+      // Size filters
+      ...sizeFilter,
+      // Date filter
+      ...dateFilter,
+    };
+  }, [page, searchValue, selectedDrive, selectedTypes, selectedTags, selectedSize, selectedDatePreset]);
 
   /* ---------- API Hooks ---------- */
 
   const { data, isLoading } = useAllDrivesFiles(queryParams);
   const { data: drives } = useDriveAccountStats();
+  const {
+    mutate: deleteSelectedFiles,
+    isSuccess,
+    isPending,
+  } = useDeleteFiles();
+
   const { refetch: refetchDriveFiles, isLoading: isSyncing } =
     useAllDrivesFilesSync();
   /* ---------- Normalize API Response ---------- */
@@ -243,9 +293,11 @@ export default function FilesExplorer() {
 
   /* ---------- Selection Handlers ---------- */
 
-  const toggleFile = (id: string) => {
+  const toggleFile = (id: string, driveId?: string) => {
     setSelectedFiles((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.some((f) => f.fileId === id)
+        ? prev.filter((f) => f.fileId !== id)
+        : [...prev, { fileId: id, driveId }]
     );
   };
 
@@ -253,7 +305,9 @@ export default function FilesExplorer() {
     if (selectedFiles.length === files.length) {
       setSelectedFiles([]);
     } else {
-      setSelectedFiles(files.map((f) => f._id));
+      setSelectedFiles(
+        files.map((f) => ({ fileId: f._id, driveId: f.driveAccountId }))
+      );
     }
   };
 
@@ -265,6 +319,48 @@ export default function FilesExplorer() {
       return [...prev, value];
     });
   };
+
+  // Toggle a tag filter (shared, starred, trashed)
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSelectedTypes([]);
+    setSelectedTags([]);
+    setSelectedSize("all");
+    setSelectedDatePreset("all");
+    setSearchInput("");
+    setSelectedDrive("all");
+  };
+
+  // Check if any filters are active
+  const hasActiveFilters = 
+    selectedTypes.length > 0 || 
+    selectedTags.length > 0 || 
+    selectedSize !== "all" || 
+    selectedDatePreset !== "all" ||
+    searchValue !== "" ||
+    selectedDrive !== "all";
+
+  /* ---------- Bulk Actions ---------- */
+
+  const downloadFiles = () => {
+    // Implement download logic here
+  };
+
+  const deleteFiles = () => {
+    // Implement delete logic here
+    deleteSelectedFiles(selectedFiles);
+  };
+  useEffect(() => {
+    if (isSuccess) {
+      setSelectedFiles([]);
+    }
+  }, [isSuccess]);
 
   /* -----------------------------------
  UI RENDER
@@ -281,110 +377,200 @@ export default function FilesExplorer() {
             Centralized file intelligence across all connected drives.
           </p>
         </div>
-
-        <Button className="gap-2">
-          <Upload className="h-4 w-4" />
-          Upload Files
-        </Button>
-        <Button className="gap-2" disabled={isSyncing} onClick={() => refetchDriveFiles()}>
-          <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-          Sync Files
-        </Button>
+        <div className="flex gap-2">
+          <Button className="gap-2">
+            <Upload className="h-4 w-4" />
+            Upload Files
+          </Button>
+          <Button
+            className="gap-2"
+            disabled={isSyncing}
+            onClick={() => refetchDriveFiles()}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`}
+            />
+            Sync Files
+          </Button>
+        </div>
       </div>
 
       {/* FILTER BAR */}
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search files..."
-            className="pl-9"
-          />
+      <div className="flex flex-col gap-3">
+        {/* Row 1: Search + Main Filters */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search files..."
+              className="pl-9"
+            />
+          </div>
+
+          <Select value={selectedDrive} onValueChange={setSelectedDrive}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="All Drives" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Drives</SelectItem>
+              {drives?.map((d) => (
+                <SelectItem key={d._id} value={d._id}>
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={d.owner.photoLink}
+                      alt=""
+                      className="h-6 w-6 rounded-full"
+                    />
+                    {d.owner.emailAddress.split("@")[0]}{" "}
+                    <StatusBadge status={d.connectionStatus} />
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Multi-select type filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-[140px] justify-between">
+                {selectedTypes.length === 0
+                  ? "All Types"
+                  : selectedTypes.length === 1
+                  ? FILE_FILTER_CATEGORIES.find(
+                      (c) => c.value === selectedTypes[0]
+                    )?.label || selectedTypes[0]
+                  : `${selectedTypes.length} selected`}
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="start">
+              <div className="px-2 py-1">
+                <div
+                  className="flex items-center gap-2 px-2 py-1 cursor-pointer"
+                  onClick={() => setSelectedTypes([])}
+                >
+                  <Checkbox checked={selectedTypes.length === 0} />
+                  <span className="text-sm">All Types</span>
+                </div>
+
+                <DropdownMenuSeparator />
+
+                {FILE_FILTER_CATEGORIES.map((type) => (
+                  <div
+                    key={type.value}
+                    className="flex items-center gap-2 px-2 py-1 cursor-pointer"
+                    onClick={() => toggleType(type.value)}
+                  >
+                    <Checkbox checked={selectedTypes.includes(type.value)} />
+                    <span className="capitalize text-sm">{type.label}</span>
+                  </div>
+                ))}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Size filter dropdown */}
+          <Select value={selectedSize} onValueChange={setSelectedSize}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="Any Size" />
+            </SelectTrigger>
+            <SelectContent>
+              {SIZE_FILTER_OPTIONS.map((size) => (
+                <SelectItem key={size.value} value={size.value}>
+                  {size.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Date filter dropdown */}
+          <Select value={selectedDatePreset} onValueChange={setSelectedDatePreset}>
+            <SelectTrigger className="w-[140px]">
+              <Calendar className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Any Time" />
+            </SelectTrigger>
+            <SelectContent>
+              {DATE_PRESETS.map((preset) => (
+                <SelectItem key={preset.value} value={preset.value}>
+                  {preset.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="hidden sm:flex border rounded-lg p-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              className={cn(viewMode === "list" && "bg-muted")}
+              onClick={() => setViewMode("list")}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+
+            <Button
+              size="icon"
+              variant="ghost"
+              className={cn(viewMode === "grid" && "bg-muted")}
+              onClick={() => setViewMode("grid")}
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
-        <Select value={selectedDrive} onValueChange={setSelectedDrive}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="All Drives" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Drives</SelectItem>
-            {drives?.map((d) => (
-              <SelectItem key={d._id} value={d._id}>
-                <div className="flex items-center gap-2">
-                  <img
-                    src={d.owner.photoLink}
-                    alt=""
-                    className="h-6 w-6 rounded-full"
-                  />
-                  {d.owner.emailAddress.split("@")[0]}{" "}
-                  <StatusBadge status={d.connectionStatus} />
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Row 2: Tag Badges (Shared, Starred, Trashed) + Clear Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground mr-1">
+            <Filter className="h-4 w-4 inline mr-1" />
+            Tags:
+          </span>
 
-        {/* Multi-select type filter */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-[140px] justify-between">
-              {selectedTypes.length === 0
-                ? "All Types"
-                : selectedTypes.length === 1
-                ? FILE_FILTER_CATEGORIES.find(
-                    (c) => c.value === selectedTypes[0]
-                  )?.label || selectedTypes[0]
-                : `${selectedTypes.length} selected`}
+          <Badge
+            variant={selectedTags.includes("shared") ? "default" : "outline"}
+            className="cursor-pointer hover:bg-primary/90 transition-colors"
+            onClick={() => toggleTag("shared")}
+          >
+            <Users className="h-3 w-3 mr-1" />
+            Shared
+          </Badge>
+
+          <Badge
+            variant={selectedTags.includes("starred") ? "default" : "outline"}
+            className={cn(
+              "cursor-pointer hover:bg-primary/90 transition-colors",
+              selectedTags.includes("starred") && "bg-yellow-500 hover:bg-yellow-600"
+            )}
+            onClick={() => toggleTag("starred")}
+          >
+            <Star className={cn("h-3 w-3 mr-1", selectedTags.includes("starred") && "fill-current")} />
+            Starred
+          </Badge>
+
+          <Badge
+            variant={selectedTags.includes("trashed") ? "destructive" : "outline"}
+            className="cursor-pointer hover:bg-destructive/90 transition-colors"
+            onClick={() => toggleTag("trashed")}
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Trashed
+          </Badge>
+
+          {/* Clear all filters button */}
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto text-muted-foreground hover:text-foreground"
+              onClick={clearAllFilters}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Clear Filters
             </Button>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent align="start">
-            <div className="px-2 py-1">
-              <div
-                className="flex items-center gap-2 px-2 py-1 cursor-pointer"
-                onClick={() => setSelectedTypes([])}
-              >
-                <Checkbox checked={selectedTypes.length === 0} />
-                <span className="text-sm">All Types</span>
-              </div>
-
-              <DropdownMenuSeparator />
-
-              {FILE_FILTER_CATEGORIES.map((type) => (
-                <div
-                  key={type.value}
-                  className="flex items-center gap-2 px-2 py-1 cursor-pointer"
-                  onClick={() => toggleType(type.value)}
-                >
-                  <Checkbox checked={selectedTypes.includes(type.value)} />
-                  <span className="capitalize text-sm">{type.label}</span>
-                </div>
-              ))}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <div className="hidden sm:flex border rounded-lg p-1">
-          <Button
-            size="icon"
-            variant="ghost"
-            className={cn(viewMode === "list" && "bg-muted")}
-            onClick={() => setViewMode("list")}
-          >
-            <List className="h-4 w-4" />
-          </Button>
-
-          <Button
-            size="icon"
-            variant="ghost"
-            className={cn(viewMode === "grid" && "bg-muted")}
-            onClick={() => setViewMode("grid")}
-          >
-            <Grid className="h-4 w-4" />
-          </Button>
+          )}
         </div>
       </div>
 
@@ -396,14 +582,19 @@ export default function FilesExplorer() {
             {selectedFiles.length} Selected
           </span>
 
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="outline" onClick={downloadFiles}>
             <Download className="h-4 w-4 mr-2" />
             Download
           </Button>
 
-          <Button size="sm" variant="destructive">
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={isPending}
+            onClick={deleteFiles}
+          >
             <Trash2 className="h-4 w-4 mr-2" />
-            Delete
+            {isPending ? "Deleting..." : "Delete"}
           </Button>
         </div>
       )}
@@ -441,8 +632,12 @@ export default function FilesExplorer() {
                 <TableRow key={file._id}>
                   <TableCell>
                     <Checkbox
-                      checked={selectedFiles.includes(file._id!)}
-                      onCheckedChange={() => toggleFile(file._id!)}
+                      checked={selectedFiles.some(
+                        (f) => f.fileId === file._id!
+                      )}
+                      onCheckedChange={() =>
+                        toggleFile(file._id!, file.driveAccountId)
+                      }
                     />
                   </TableCell>
 
@@ -454,17 +649,27 @@ export default function FilesExplorer() {
                         {/* Tags row */}
                         <div className="flex flex-wrap gap-1 mt-1">
                           {file.shared && (
-                            <Badge variant="secondary" className="text-xs gap-1">
+                            <Badge
+                              variant="secondary"
+                              className="text-xs gap-1"
+                            >
                               <Users className="h-3 w-3" /> Shared
                             </Badge>
                           )}
                           {file.starred && (
-                            <Badge variant="secondary" className="text-xs gap-1 text-yellow-600">
-                              <Star className="h-3 w-3 fill-yellow-500" /> Starred
+                            <Badge
+                              variant="secondary"
+                              className="text-xs gap-1 text-yellow-600"
+                            >
+                              <Star className="h-3 w-3 fill-yellow-500" />{" "}
+                              Starred
                             </Badge>
                           )}
                           {file.trashed && (
-                            <Badge variant="destructive" className="text-xs gap-1">
+                            <Badge
+                              variant="destructive"
+                              className="text-xs gap-1"
+                            >
                               <Trash2 className="h-3 w-3" /> Trashed
                             </Badge>
                           )}
@@ -581,15 +786,19 @@ export default function FilesExplorer() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {files.map((file) => {
-              const isImage = file.mimeType?.startsWith("image/");
-              const driveInfo = drives?.find((d) => d._id === file.driveAccountId);
-              console.log(`http://localhost:4000/api/file/thumbnail?fileId=${file.googleFileId}&accountId=${file.driveAccountId}`)
+              const driveInfo = drives?.find(
+                (d) => d._id === file.driveAccountId
+              );
+              console.log(
+                `http://localhost:4000/api/file/thumbnail?fileId=${file.googleFileId}&accountId=${file.driveAccountId}`
+              );
               return (
                 <Card
                   key={file._id}
                   className={cn(
                     "group overflow-hidden transition-shadow hover:shadow-md cursor-pointer",
-                    selectedFiles.includes(file._id!) && "ring-2 ring-primary"
+                    selectedFiles.some((f) => f.fileId === file._id!) &&
+                      "ring-2 ring-primary"
                   )}
                 >
                   {/* Preview / Thumbnail */}
@@ -630,7 +839,11 @@ export default function FilesExplorer() {
                     {/* Overlay with actions on hover */}
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       <Button size="sm" variant="secondary" asChild>
-                        <a href={file.webViewLink} target="_blank" rel="noreferrer">
+                        <a
+                          href={file.webViewLink}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
                           <Eye className="h-4 w-4 mr-1" /> Preview
                         </a>
                       </Button>
@@ -639,8 +852,12 @@ export default function FilesExplorer() {
                     {/* Checkbox */}
                     <div className="absolute top-2 left-2">
                       <Checkbox
-                        checked={selectedFiles.includes(file._id!)}
-                        onCheckedChange={() => toggleFile(file._id!)}
+                        checked={selectedFiles.some(
+                          (f) => f.fileId === file._id!
+                        )}
+                        onCheckedChange={() =>
+                          toggleFile(file._id!, file.driveAccountId)
+                        }
                         className="bg-background"
                       />
                     </div>
@@ -649,7 +866,11 @@ export default function FilesExplorer() {
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button size="icon" variant="secondary" className="h-7 w-7">
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="h-7 w-7"
+                          >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -682,8 +903,15 @@ export default function FilesExplorer() {
                   <CardContent className="p-3 space-y-2">
                     {/* File name with icon */}
                     <div className="flex items-center gap-2">
-                      <img src={file.iconLink} alt="" className="h-4 w-4 shrink-0" />
-                      <p className="text-sm font-medium truncate" title={file.name}>
+                      <img
+                        src={file.iconLink}
+                        alt=""
+                        className="h-4 w-4 shrink-0"
+                      />
+                      <p
+                        className="text-sm font-medium truncate"
+                        title={file.name}
+                      >
                         {file.name}
                       </p>
                     </div>
@@ -696,7 +924,10 @@ export default function FilesExplorer() {
                         </Badge>
                       )}
                       {file.starred && (
-                        <Badge variant="secondary" className="text-xs gap-1 text-yellow-600">
+                        <Badge
+                          variant="secondary"
+                          className="text-xs gap-1 text-yellow-600"
+                        >
                           <Star className="h-3 w-3 fill-yellow-500" /> Starred
                         </Badge>
                       )}
@@ -724,7 +955,9 @@ export default function FilesExplorer() {
                         <div className="h-5 w-5 rounded-full bg-muted" />
                       )}
                       <span className="truncate">
-                        {driveInfo?.owner?.emailAddress || file.drive?.email || "—"}
+                        {driveInfo?.owner?.emailAddress ||
+                          file.drive?.email ||
+                          "—"}
                       </span>
                     </div>
 

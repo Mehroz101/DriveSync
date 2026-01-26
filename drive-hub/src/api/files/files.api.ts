@@ -21,6 +21,15 @@ export interface FilesQuery {
   orderBy?: string;
   mimeTypes?: string[];
   sort?: "asc" | "desc";
+  // Tag filters
+  shared?: boolean;
+  starred?: boolean;
+  trashed?: boolean;
+  // Size filters
+  sizeMin?: number;
+  sizeMax?: number;
+  // Date filter
+  modifiedAfter?: string;
   // allow other optional filters while avoiding `any`
   [key: string]: string | number | boolean | undefined | string[];
 }
@@ -57,5 +66,14 @@ export const allDrivesFilesSync = async (): Promise<DriveFile[]> => {
     return response.data.files;
   } catch (error) {
     console.log(error);
+  }
+};
+export const deleteFilesAPI = async (data: { fileId: string; driveId: string }[]): Promise<{ success: boolean }> => {
+  try {
+    const response = await apiClient.post("/file/delete-files", data);
+    return { success: response.data.success };
+  } catch (error) {
+    console.log(error);
+    return { success: false };
   }
 };

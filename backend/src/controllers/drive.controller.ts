@@ -7,7 +7,7 @@ import {
   fetchDriveQuotaFromGoogle,
   fetchDriveStats,
   updateDriveData,
-  fetchDriveStatsFromDatabase
+  fetchDriveStatsFromDatabase,
 } from "../services/drive.service.js";
 import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
 import { getUserById } from "../services/auth.service.js";
@@ -162,15 +162,15 @@ export const addDriveAccount = async (
   next: NextFunction
 ) => {
   try {
-     try {
-        const userId = req.userId!;
-        const state = generateOAuthState(userId);
-        const authUrl = `${process.env.BACKEND_URL}/api/auth/add-drive-account?state=${state}`;
-    
-        res.json({ authUrl });
-      } catch (error) {
-        next(error);
-      }
+    try {
+      const userId = req.userId!;
+      const state = generateOAuthState(userId);
+      const authUrl = `${process.env.BACKEND_URL}/api/auth/add-drive-account?state=${state}`;
+
+      res.json({ authUrl });
+    } catch (error) {
+      next(error);
+    }
   } catch (error) {
     next(error);
   }
@@ -220,7 +220,6 @@ export const syncAllDrivesData = async (
   try {
     const driveAccounts = await driveAccount.find({
       userId: req.userId!,
-    
     });
     const stats = await Promise.allSettled(
       driveAccounts.map((account) => fetchDriveStats(account))
@@ -239,25 +238,30 @@ export const syncDrive = async (
   next: NextFunction
 ) => {
   try {
-    const { driveId } = req.params;
-    const user = await getUserById(req.userId!);
-    const account = await driveAccount.findById(driveId);
-    const stats = await updateDriveData(account);
-
+    const driveId = req.params.driveId;
+    const driveAccountData = await driveAccount.findById(driveId);
+    if (!driveAccountData) {
+      return res.status(404).json({ error: "Drive account not found" });
+    }
+    const stats = await fetchDriveStats(driveAccountData);
     return res.status(200).json(stats);
   } catch (error) {
     next(error);
   }
 };
-export const driveStats = async (req:AuthenticatedRequest,res:Response)=>{
-    try {
-        const user = await getUserById(req.userId!)
-        const driveAccounts = await driveAccount.find({ userId: req.userId!});
-        // const stats = await Promise.allSettled(driveAccounts.map((account) => fetchDriveStats(account)));
-        const stats = await Promise.allSettled(driveAccounts.map((account) => fetchDriveStatsFromDatabase(account)));
-        const filteredStats = stats.filter((stat) => stat.status === "fulfilled").map((stat) => stat.value);
-        return res.status(200).json(filteredStats);
-    } catch (error) {
-        console.log(error);
-    }
-}
+export const driveStats = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = await getUserById(req.userId!);
+    const driveAccounts = await driveAccount.find({ userId: req.userId! });
+    // const stats = await Promise.allSettled(driveAccounts.map((account) => fetchDriveStats(account)));
+    const stats = await Promise.allSettled(
+      driveAccounts.map((account) => fetchDriveStatsFromDatabase(account))
+    );
+    const filteredStats = stats
+      .filter((stat) => stat.status === "fulfilled")
+      .map((stat) => stat.value);
+    return res.status(200).json(filteredStats);
+  } catch (error) {
+    console.log(error);
+  }
+};

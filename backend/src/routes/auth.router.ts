@@ -11,6 +11,7 @@ import {
   AuthenticatedRequest,
 } from "../middleware/auth.middleware.js";
 import driveAccount from "../models/driveAccount.js";
+import { fetchDriveStats } from "../services/drive.service.js";
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ router.get("/google", (req: Request, res: Response, next: NextFunction) => {
     scope: [
       "profile",
       "email",
-      "https://www.googleapis.com/auth/drive.readonly",
+      "https://www.googleapis.com/auth/drive",
     ],
     accessType: "offline" as const,
     prompt: "consent" as const,
@@ -129,10 +130,10 @@ router.get(
       scope: [
         "profile",
         "email",
-        "https://www.googleapis.com/auth/drive.readonly",
+        "https://www.googleapis.com/auth/drive",
       ],
       accessType: "offline" as const,
-      prompt: isReconnect ? "consent" : "select_account",
+      prompt: "consent",
       login_hint: loginHint,
       includeGrantedScopes: true,
       session: false,
@@ -201,7 +202,7 @@ router.get(
                 scopes: [
                   "profile",
                   "email",
-                  "https://www.googleapis.com/auth/drive.readonly",
+                  "https://www.googleapis.com/auth/drive",
                 ],
               },
               { new: true }
@@ -225,12 +226,13 @@ router.get(
                 scopes: [
                   "profile",
                   "email",
-                  "https://www.googleapis.com/auth/drive.readonly",
+                  "https://www.googleapis.com/auth/drive",
                 ],
               },
               { upsert: true, new: true }
             );
           }
+          await fetchDriveStats(driveaccount);
 
           console.log(
             `Drive account linked → user=${userId}, google=${profile.id}`

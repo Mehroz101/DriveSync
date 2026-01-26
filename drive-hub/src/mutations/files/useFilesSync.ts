@@ -4,7 +4,7 @@ import { driveKeys } from "@/api/drive/drive.keys";
 import { allDrivesFilesSync } from "@/api/files/files.api";
 import { filesKey } from "@/api/files/files.keys";
 
-export const useAddDrive = () => {
+export const useDriveFilesSync = () => {
   const queryClient = useQueryClient();
 
   return useMutation({

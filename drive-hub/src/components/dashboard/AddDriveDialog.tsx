@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import {
 import { Button } from "../ui/button";
 import { ExternalLink, Plus } from "lucide-react";
 import { useAddDrive } from "@/mutations/drive/useAddDrive";
+import { useDriveAccountsRefetch } from "@/queries/drive/useDriveAccounts";
 const BASE_URL = "http://localhost:4000";
 const AddDriveDialog = ({
   isAddDialogOpen,
@@ -19,7 +20,7 @@ const AddDriveDialog = ({
   isAddDialogOpen: boolean;
   setIsAddDialogOpen: (open: boolean) => void;
 }) => {
-  const { mutateAsync, isPending } = useAddDrive();
+  const { mutateAsync, isPending, isSuccess } = useAddDrive();
   const handleAddDrive = async () => {
     try {
       const response = await mutateAsync();
@@ -36,6 +37,7 @@ const AddDriveDialog = ({
       alert("Unable to connect Google Drive. Please try again.");
     }
   };
+
   return (
     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
       <DialogTrigger asChild>

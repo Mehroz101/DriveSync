@@ -1,4 +1,5 @@
 import { QUERY_SCOPE } from "@/constants/queryScopes";
+import type { FilesQuery } from "./files.api";
 
 export const filesKey = {
 
@@ -17,14 +18,7 @@ export const filesKey = {
     [...filesKey.filesRoot(), "all"] as const,
 
   // Paginated + Filtered listing (primary UI)
-  list: (params: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    driveId?: string;
-    driveStatus?: string;
-    mimeTypes?: string[];
-  }) =>
+  list: (params: FilesQuery) =>
     [...filesKey.filesRoot(), "list", params] as const,
 
   // Single file details

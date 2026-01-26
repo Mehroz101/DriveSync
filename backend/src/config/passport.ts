@@ -17,7 +17,7 @@ passport.use(
       scope: [
         "profile",
         "email",
-        "https://www.googleapis.com/auth/drive.readonly",
+        "https://www.googleapis.com/auth/drive",
       ],
     },
     async (
@@ -48,7 +48,7 @@ passport.use(
             googleId: profile.id,
             accessToken,
             refreshToken,
-            scopes: ["profile", "email", "https://www.googleapis.com/auth/drive.readonly"],
+            scopes: ["profile", "email", "https://www.googleapis.com/auth/drive"],
           },
           { upsert: true, new: true }
         );
@@ -72,7 +72,7 @@ passport.use(
       scope: [
         "profile",
         "email",
-        "https://www.googleapis.com/auth/drive.readonly",
+        "https://www.googleapis.com/auth/drive",
       ],
     },
     async (
