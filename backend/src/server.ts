@@ -14,14 +14,31 @@ import fileRoutes from "./routes/file.routes.js";
 import searchRoutes from "./routes/search.routes.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import connectDB from "./auth/db.js";
+import util from "node:util";
+
+const formatError = (err: unknown) => {
+  if (err instanceof Error) return err.stack || err.message;
+  try {
+    return util.inspect(err, { depth: null, showHidden: true });
+  } catch (e) {
+    return String(err);
+  }
+};
+
 process.on("uncaughtException", (err) => {
-  console.error("UNCAUGHT EXCEPTION:", err);
+  console.error("UNCAUGHT EXCEPTION:", formatError(err));
+  // Exit so process restarts in a clean state
+  process.exit(1);
 });
 
 process.on("unhandledRejection", (reason) => {
-  console.error("UNHANDLED REJECTION:", reason);
+  console.error("UNHANDLED REJECTION:", formatError(reason));
+  // Exit so process restarts in a clean state
+  process.exit(1);
 });
+
 const app = express();
+let server: any = null;
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
@@ -40,22 +57,41 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Connect to MongoDB
-connectDB()
+// Connect to MongoDB and start the HTTP server
+async function startServer() {
+  try {
+    await connectDB();
 
-app.use("/test", (req,res) => {
-  res.send("Server is running");
+    app.use("/test", (req, res) => {
+      res.send("Server is running");
+    });
+    app.use("/api/email-auth", emailAuthRoutes);
+    app.use("/api/drive", driveRoutes);
+    app.use("/api/file", fileRoutes);
+    app.use("/api/auth", googleAuthRoutes);
+    app.use("/api/profile", profileRoutes);
+    app.use("/api", searchRoutes);
+    app.use(errorHandler);
+
+    const port = process.env.PORT || 4000;
+    server = app.listen(port, () => console.log(`Server running on port ${port}`));
+  } catch (err) {
+    console.error("Failed to start server:", formatError(err));
+    process.exit(1);
+  }
+}
+
+startServer();
+
+// Graceful shutdown
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down...");
+  if (server) {
+    server.close(() => {
+      console.log("HTTP server closed");
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
 });
-app.use("/api/email-auth", emailAuthRoutes); //check
-app.use("/api/drive", driveRoutes); //partial check
-app.use("/api/file", fileRoutes); 
-// Google OAuth routes
-app.use("/api/auth", googleAuthRoutes);
-// Email/password authentication routes
-app.use("/api/profile", profileRoutes);
-app.use("/api", searchRoutes);
-app.use(errorHandler);
-
-app.listen(process.env.PORT || 4000, () =>
-  console.log(`Server running on port ${process.env.PORT || 4000}`)
-);

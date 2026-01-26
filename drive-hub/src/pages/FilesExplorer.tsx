@@ -62,112 +62,20 @@ import { cn } from "@/lib/utils";
 
 import type { DriveFile, FileType } from "@/types";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { deleteFiles } from "@/services/api";
 import { useDeleteFiles } from "@/mutations/files/useDeleteFiles";
+import { DeleteFileDialog } from "@/components/common/deleteDialog";
+import { MIME_FILTER_MAP, FILE_FILTER_CATEGORIES, SIZE_FILTER_OPTIONS, DATE_PRESETS } from "@/constants/fileFilters";
+
+import FilterBar from "@/components/files/FilterBar";
+import FileCard from "@/components/files/FileCard";
+import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import type { DeleteFilesResponse } from "@/api/files/files.api";
+import { useReconnectDrive } from "@/mutations/drive/useReconnectDrive";
 
 /* -----------------------------------
  CONFIG
 ------------------------------------ */
-
-export const MIME_FILTER_MAP: Record<string, string[]> = {
-  document: [
-    "application/vnd.google-apps.document",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "text/plain",
-    "text/html",
-    "text/csv",
-    "application/json",
-  ],
-
-  spreadsheet: [
-    "application/vnd.google-apps.spreadsheet",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "text/csv",
-  ],
-
-  presentation: ["application/vnd.google-apps.presentation"],
-
-  pdf: ["application/pdf"],
-
-  image: [
-    "image/jpeg",
-    "image/png",
-    "image/svg+xml",
-    "image/webp",
-    "image/gif",
-    "image/heif",
-    "image/x-photoshop",
-  ],
-
-  video: ["video/mp4", "video/mpeg", "video/quicktime", "video/webm"],
-
-  archive: [
-    "application/zip",
-    "application/x-zip-compressed",
-    "application/rar",
-    "application/octet-stream",
-  ],
-
-  folder: ["application/vnd.google-apps.folder"],
-
-  code: [
-    "text/javascript",
-    "text/css",
-    "application/x-httpd-php",
-    "application/vnd.jgraph.mxfile",
-  ],
-
-  other: [
-    "application/vnd.google-apps.shortcut",
-    "application/vnd.android.package-archive",
-    "application/vnd.google-makersuite.applet+zip",
-    "application/vnd.google-makersuite.prompt",
-    "application/x-msdownload",
-    "text/x-vcard",
-  ],
-};
-
-export const FILE_FILTER_CATEGORIES: { label: string; value: string }[] = [
-  { label: "Documents", value: "document" },
-
-  { label: "Spreadsheets", value: "spreadsheet" },
-
-  { label: "Presentations", value: "presentation" },
-
-  { label: "PDF Files", value: "pdf" },
-
-  { label: "Images", value: "image" },
-
-  { label: "Videos", value: "video" },
-
-  { label: "Archives", value: "archive" },
-
-  { label: "Folders", value: "folder" },
-
-  { label: "Code Files", value: "code" },
-
-  { label: "Other", value: "other" },
-];
-
-// Size filter options (in bytes)
-export const SIZE_FILTER_OPTIONS: { label: string; value: string; min?: number; max?: number }[] = [
-  { label: "Any Size", value: "all" },
-  { label: "< 1 MB", value: "small", max: 1024 * 1024 },
-  { label: "1 - 10 MB", value: "medium", min: 1024 * 1024, max: 10 * 1024 * 1024 },
-  { label: "10 - 100 MB", value: "large", min: 10 * 1024 * 1024, max: 100 * 1024 * 1024 },
-  { label: "100 MB - 1 GB", value: "xlarge", min: 100 * 1024 * 1024, max: 1024 * 1024 * 1024 },
-  { label: "> 1 GB", value: "huge", min: 1024 * 1024 * 1024 },
-];
-
-// Date preset options
-export const DATE_PRESETS: { label: string; value: string; days?: number }[] = [
-  { label: "Any Time", value: "all" },
-  { label: "Today", value: "today", days: 1 },
-  { label: "Last 7 days", value: "week", days: 7 },
-  { label: "Last 30 days", value: "month", days: 30 },
-  { label: "Last 90 days", value: "quarter", days: 90 },
-  { label: "Last year", value: "year", days: 365 },
-];
 
 const PAGE_SIZE = 50;
 
@@ -207,7 +115,13 @@ export default function FilesExplorer() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedDrive, selectedTypes, selectedTags, selectedSize, selectedDatePreset]);
+  }, [
+    selectedDrive,
+    selectedTypes,
+    selectedTags,
+    selectedSize,
+    selectedDatePreset,
+  ]);
 
   useEffect(() => {
     const debounce = setTimeout(() => {
@@ -221,10 +135,13 @@ export default function FilesExplorer() {
 
   const queryParams = useMemo(() => {
     // Build size filter values
-    const sizeOption = SIZE_FILTER_OPTIONS.find((s) => s.value === selectedSize);
-    const sizeFilter = sizeOption && selectedSize !== "all" 
-      ? { sizeMin: sizeOption.min, sizeMax: sizeOption.max }
-      : {};
+    const sizeOption = SIZE_FILTER_OPTIONS.find(
+      (s) => s.value === selectedSize
+    );
+    const sizeFilter =
+      sizeOption && selectedSize !== "all"
+        ? { sizeMin: sizeOption.min, sizeMax: sizeOption.max }
+        : {};
 
     // Build date filter (modifiedAfter)
     const datePreset = DATE_PRESETS.find((d) => d.value === selectedDatePreset);
@@ -251,20 +168,27 @@ export default function FilesExplorer() {
       // Date filter
       ...dateFilter,
     };
-  }, [page, searchValue, selectedDrive, selectedTypes, selectedTags, selectedSize, selectedDatePreset]);
+  }, [
+    page,
+    searchValue,
+    selectedDrive,
+    selectedTypes,
+    selectedTags,
+    selectedSize,
+    selectedDatePreset,
+  ]);
 
   /* ---------- API Hooks ---------- */
 
   const { data, isLoading } = useAllDrivesFiles(queryParams);
   const { data: drives } = useDriveAccountStats();
-  const {
-    mutate: deleteSelectedFiles,
-    isSuccess,
-    isPending,
-  } = useDeleteFiles();
+  const deleteFilesMutation = useDeleteFiles();
 
   const { refetch: refetchDriveFiles, isLoading: isSyncing } =
     useAllDrivesFilesSync();
+  const { toast } = useToast();
+  const [deleteResponse, setDeleteResponse] = useState<DeleteFilesResponse | null>(null);
+  const { mutateAsync: reconnectDrive } = useReconnectDrive();
   /* ---------- Normalize API Response ---------- */
 
   const files = useMemo<DriveFile[]>(() => {
@@ -338,10 +262,10 @@ export default function FilesExplorer() {
   };
 
   // Check if any filters are active
-  const hasActiveFilters = 
-    selectedTypes.length > 0 || 
-    selectedTags.length > 0 || 
-    selectedSize !== "all" || 
+  const hasActiveFilters =
+    selectedTypes.length > 0 ||
+    selectedTags.length > 0 ||
+    selectedSize !== "all" ||
     selectedDatePreset !== "all" ||
     searchValue !== "" ||
     selectedDrive !== "all";
@@ -352,15 +276,38 @@ export default function FilesExplorer() {
     // Implement download logic here
   };
 
-  const deleteFiles = () => {
-    // Implement delete logic here
-    deleteSelectedFiles(selectedFiles);
+  const deleteFiles = async (items?: { fileId: string; driveId?: string }[]) => {
+    const payload = items ? items : selectedFiles;
+    if (payload.length === 0) return;
+
+    try {
+      const result = await deleteFilesMutation.mutateAsync(
+        payload.map((p) => ({ fileId: p.fileId, driveId: p.driveId }))
+      );
+      setDeleteResponse(result);
+
+      if (result.success) {
+        toast({ title: "Files deleted", description: `${result.deletedCount ?? payload.length} files removed` });
+        setSelectedFiles([]);
+      } else {
+        toast({ title: "Delete failed", description: result.error || "Failed to delete files" });
+      }
+
+      // If backend returned failedFiles, show warning toast
+      if (result.failedFiles && result.failedFiles.length > 0) {
+        toast({ title: "Partial Failure", description: `${result.failedFiles.length} files could not be fully removed.` });
+      }
+    } catch (err) {
+      setDeleteResponse({ success: false, error: (err instanceof Error ? err.message : String(err)) });
+      toast({ title: "Delete failed", description: "An unexpected error occurred" });
+    }
   };
+
   useEffect(() => {
-    if (isSuccess) {
+    if (deleteFilesMutation.isSuccess) {
       setSelectedFiles([]);
     }
-  }, [isSuccess]);
+  }, [deleteFilesMutation.isSuccess]);
 
   /* -----------------------------------
  UI RENDER
@@ -395,184 +342,26 @@ export default function FilesExplorer() {
         </div>
       </div>
 
-      {/* FILTER BAR */}
-
-      <div className="flex flex-col gap-3">
-        {/* Row 1: Search + Main Filters */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search files..."
-              className="pl-9"
-            />
-          </div>
-
-          <Select value={selectedDrive} onValueChange={setSelectedDrive}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="All Drives" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Drives</SelectItem>
-              {drives?.map((d) => (
-                <SelectItem key={d._id} value={d._id}>
-                  <div className="flex items-center gap-2">
-                    <img
-                      src={d.owner.photoLink}
-                      alt=""
-                      className="h-6 w-6 rounded-full"
-                    />
-                    {d.owner.emailAddress.split("@")[0]}{" "}
-                    <StatusBadge status={d.connectionStatus} />
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Multi-select type filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="w-[140px] justify-between">
-                {selectedTypes.length === 0
-                  ? "All Types"
-                  : selectedTypes.length === 1
-                  ? FILE_FILTER_CATEGORIES.find(
-                      (c) => c.value === selectedTypes[0]
-                    )?.label || selectedTypes[0]
-                  : `${selectedTypes.length} selected`}
-              </Button>
-            </DropdownMenuTrigger>
-
-            <DropdownMenuContent align="start">
-              <div className="px-2 py-1">
-                <div
-                  className="flex items-center gap-2 px-2 py-1 cursor-pointer"
-                  onClick={() => setSelectedTypes([])}
-                >
-                  <Checkbox checked={selectedTypes.length === 0} />
-                  <span className="text-sm">All Types</span>
-                </div>
-
-                <DropdownMenuSeparator />
-
-                {FILE_FILTER_CATEGORIES.map((type) => (
-                  <div
-                    key={type.value}
-                    className="flex items-center gap-2 px-2 py-1 cursor-pointer"
-                    onClick={() => toggleType(type.value)}
-                  >
-                    <Checkbox checked={selectedTypes.includes(type.value)} />
-                    <span className="capitalize text-sm">{type.label}</span>
-                  </div>
-                ))}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Size filter dropdown */}
-          <Select value={selectedSize} onValueChange={setSelectedSize}>
-            <SelectTrigger className="w-[130px]">
-              <SelectValue placeholder="Any Size" />
-            </SelectTrigger>
-            <SelectContent>
-              {SIZE_FILTER_OPTIONS.map((size) => (
-                <SelectItem key={size.value} value={size.value}>
-                  {size.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Date filter dropdown */}
-          <Select value={selectedDatePreset} onValueChange={setSelectedDatePreset}>
-            <SelectTrigger className="w-[140px]">
-              <Calendar className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Any Time" />
-            </SelectTrigger>
-            <SelectContent>
-              {DATE_PRESETS.map((preset) => (
-                <SelectItem key={preset.value} value={preset.value}>
-                  {preset.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="hidden sm:flex border rounded-lg p-1">
-            <Button
-              size="icon"
-              variant="ghost"
-              className={cn(viewMode === "list" && "bg-muted")}
-              onClick={() => setViewMode("list")}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-
-            <Button
-              size="icon"
-              variant="ghost"
-              className={cn(viewMode === "grid" && "bg-muted")}
-              onClick={() => setViewMode("grid")}
-            >
-              <Grid className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Row 2: Tag Badges (Shared, Starred, Trashed) + Clear Filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground mr-1">
-            <Filter className="h-4 w-4 inline mr-1" />
-            Tags:
-          </span>
-
-          <Badge
-            variant={selectedTags.includes("shared") ? "default" : "outline"}
-            className="cursor-pointer hover:bg-primary/90 transition-colors"
-            onClick={() => toggleTag("shared")}
-          >
-            <Users className="h-3 w-3 mr-1" />
-            Shared
-          </Badge>
-
-          <Badge
-            variant={selectedTags.includes("starred") ? "default" : "outline"}
-            className={cn(
-              "cursor-pointer hover:bg-primary/90 transition-colors",
-              selectedTags.includes("starred") && "bg-yellow-500 hover:bg-yellow-600"
-            )}
-            onClick={() => toggleTag("starred")}
-          >
-            <Star className={cn("h-3 w-3 mr-1", selectedTags.includes("starred") && "fill-current")} />
-            Starred
-          </Badge>
-
-          <Badge
-            variant={selectedTags.includes("trashed") ? "destructive" : "outline"}
-            className="cursor-pointer hover:bg-destructive/90 transition-colors"
-            onClick={() => toggleTag("trashed")}
-          >
-            <Trash2 className="h-3 w-3 mr-1" />
-            Trashed
-          </Badge>
-
-          {/* Clear all filters button */}
-          {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto text-muted-foreground hover:text-foreground"
-              onClick={clearAllFilters}
-            >
-              <X className="h-4 w-4 mr-1" />
-              Clear Filters
-            </Button>
-          )}
-        </div>
-      </div>
+      <FilterBar
+        selectedDrive={selectedDrive}
+        setSelectedDrive={setSelectedDrive}
+        drives={drives}
+        searchInput={searchInput}
+        setSearchInput={setSearchInput}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        selectedTypes={selectedTypes}
+        setSelectedTypes={setSelectedTypes}
+        selectedTags={selectedTags}
+        toggleTag={toggleTag}
+        selectedSize={selectedSize}
+        setSelectedSize={setSelectedSize}
+        selectedDatePreset={selectedDatePreset}
+        setSelectedDatePreset={setSelectedDatePreset}
+        hasActiveFilters={hasActiveFilters}
+        clearAllFilters={clearAllFilters}
+        toggleType={toggleType}
+      />
 
       {/* BULK BAR */}
 
@@ -587,15 +376,60 @@ export default function FilesExplorer() {
             Download
           </Button>
 
-          <Button
-            size="sm"
-            variant="destructive"
-            disabled={isPending}
-            onClick={deleteFiles}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            {isPending ? "Deleting..." : "Delete"}
-          </Button>
+          <DeleteFileDialog
+            trigger={<Button size="sm" variant="destructive" disabled={deleteFilesMutation.status === "pending"}><Trash2 className="h-4 w-4 mr-2" />Delete</Button>}
+            onConfirm={async () => await deleteFiles()}
+            title={`Delete ${selectedFiles.length} files?`}
+            description={`This will attempt to remove files from Drive and then mark them trashed in the DB. Some files may fail to remove from Drive.`}
+            confirmLabel={`Delete ${selectedFiles.length}`}
+          />
+        </div>
+      )}
+
+      {/* Inline delete result alert */}
+      {deleteResponse && (
+        <div className="mt-2">
+          <Alert variant={deleteResponse.success ? "default" : "destructive"}>
+            <div className="flex justify-between items-start gap-4">
+              <div>
+                <AlertTitle>
+                  {deleteResponse.success ? `Deleted ${deleteResponse.deletedCount ?? 0} files` : "Delete failed"}
+                </AlertTitle>
+                <AlertDescription>
+                  {deleteResponse.success
+                    ? deleteResponse.failedFiles && deleteResponse.failedFiles.length > 0
+                      ? `${deleteResponse.failedFiles.length} file(s) failed to remove.`
+                      : "All files removed successfully."
+                    : deleteResponse.error || "An error occurred while deleting files."}
+                </AlertDescription>
+              </div>
+              <div>
+                <Button variant="ghost" size="sm" onClick={() => setDeleteResponse(null)}>
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+            {deleteResponse?.revokedAccounts && deleteResponse.revokedAccounts.length > 0 && (
+              <div className="mt-3 flex gap-2">
+                <p className="text-sm text-muted-foreground mr-2">The following accounts need reauthorization:</p>
+                <div className="flex gap-2">
+                  {deleteResponse.revokedAccounts.map((a) => (
+                    <Button key={a.id} size="sm" variant="outline" onClick={async () => {
+                      try {
+                        const resp = await reconnectDrive(a.id);
+                        if (resp && resp.authUrl) {
+                          window.location.href = resp.authUrl;
+                        }
+                      } catch (e) {
+                        console.error('Reconnect failed', e);
+                        toast({ title: 'Reconnect failed', description: 'Unable to start reauthorization flow' });
+                      }
+                    }}>{a.email || a.id}</Button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Alert>
         </div>
       )}
 
@@ -741,8 +575,10 @@ export default function FilesExplorer() {
                           <DropdownMenuSeparator />
 
                           <DropdownMenuItem className="text-destructive gap-2">
-                            <Trash2 className="h-4 w-4" />
-                            Delete
+                            <DeleteFileDialog
+                              trigger={<div className="flex gap-2 items-center text-destructive cursor-pointer"><Trash2 className="h-4 w-4" />Delete</div>}
+                              onConfirm={async () => await deleteFiles([{ fileId: file._id!, driveId: file.driveAccountId }])}
+                            />
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -785,190 +621,9 @@ export default function FilesExplorer() {
         /* ---------- GRID VIEW ---------- */
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {files.map((file) => {
-              const driveInfo = drives?.find(
-                (d) => d._id === file.driveAccountId
-              );
-              console.log(
-                `http://localhost:4000/api/file/thumbnail?fileId=${file.googleFileId}&accountId=${file.driveAccountId}`
-              );
-              return (
-                <Card
-                  key={file._id}
-                  className={cn(
-                    "group overflow-hidden transition-shadow hover:shadow-md cursor-pointer",
-                    selectedFiles.some((f) => f.fileId === file._id!) &&
-                      "ring-2 ring-primary"
-                  )}
-                >
-                  {/* Preview / Thumbnail */}
-                  <div className="relative aspect-video bg-muted flex items-center justify-center overflow-hidden">
-                    {/* Use thumbnailUrl if available, otherwise show icon */}
-                    {file.googleFileId && file.driveAccountId ? (
-                      <img
-                        src={`http://localhost:4000/api/file/thumbnail?fileId=${file.googleFileId}&accountId=${file.driveAccountId}`}
-                        alt={file.name}
-                        className="object-cover w-full h-full"
-                        onError={(e) => {
-                          const img = e.currentTarget as HTMLImageElement;
-                          img.onerror = null; // prevent loop
-                          img.src = file.iconLink || "/placeholder.svg";
-                          img.className = "h-12 w-12 opacity-60";
-                        }}
-                      />
-                    ) : file.thumbnailUrl ? (
-                      <img
-                        src={file.thumbnailUrl}
-                        alt={file.name}
-                        className="object-cover w-full h-full"
-                        onError={(e) => {
-                          const img = e.currentTarget as HTMLImageElement;
-                          img.onerror = null;
-                          img.src = file.iconLink || "/placeholder.svg";
-                          img.className = "h-12 w-12 opacity-60";
-                        }}
-                      />
-                    ) : (
-                      <img
-                        src={file.iconLink}
-                        alt=""
-                        className="h-12 w-12 opacity-60"
-                      />
-                    )}
-
-                    {/* Overlay with actions on hover */}
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <Button size="sm" variant="secondary" asChild>
-                        <a
-                          href={file.webViewLink}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <Eye className="h-4 w-4 mr-1" /> Preview
-                        </a>
-                      </Button>
-                    </div>
-
-                    {/* Checkbox */}
-                    <div className="absolute top-2 left-2">
-                      <Checkbox
-                        checked={selectedFiles.some(
-                          (f) => f.fileId === file._id!
-                        )}
-                        onCheckedChange={() =>
-                          toggleFile(file._id!, file.driveAccountId)
-                        }
-                        className="bg-background"
-                      />
-                    </div>
-
-                    {/* Dropdown menu */}
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="secondary"
-                            className="h-7 w-7"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <a
-                              href={file.webViewLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex gap-2 items-center"
-                            >
-                              <Eye className="h-4 w-4" />
-                              Open
-                            </a>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2">
-                            <Download className="h-4 w-4" />
-                            Download
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive gap-2">
-                            <Trash2 className="h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-
-                  <CardContent className="p-3 space-y-2">
-                    {/* File name with icon */}
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={file.iconLink}
-                        alt=""
-                        className="h-4 w-4 shrink-0"
-                      />
-                      <p
-                        className="text-sm font-medium truncate"
-                        title={file.name}
-                      >
-                        {file.name}
-                      </p>
-                    </div>
-
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-1">
-                      {file.shared && (
-                        <Badge variant="secondary" className="text-xs gap-1">
-                          <Users className="h-3 w-3" /> Shared
-                        </Badge>
-                      )}
-                      {file.starred && (
-                        <Badge
-                          variant="secondary"
-                          className="text-xs gap-1 text-yellow-600"
-                        >
-                          <Star className="h-3 w-3 fill-yellow-500" /> Starred
-                        </Badge>
-                      )}
-                      {file.trashed && (
-                        <Badge variant="destructive" className="text-xs gap-1">
-                          <Trash2 className="h-3 w-3" /> Trashed
-                        </Badge>
-                      )}
-                      {file.isDuplicate && (
-                        <Badge variant="outline" className="text-xs">
-                          Duplicate
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Account info */}
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {driveInfo?.owner?.photoLink ? (
-                        <img
-                          src={driveInfo.owner.photoLink}
-                          alt=""
-                          className="h-5 w-5 rounded-full"
-                        />
-                      ) : (
-                        <div className="h-5 w-5 rounded-full bg-muted" />
-                      )}
-                      <span className="truncate">
-                        {driveInfo?.owner?.emailAddress ||
-                          file.drive?.email ||
-                          "—"}
-                      </span>
-                    </div>
-
-                    {/* Date */}
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(file.modifiedTime)}
-                    </p>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {files.map((file) => (
+              <FileCard key={file._id} file={file} drives={drives} toggleFile={toggleFile} selectedFiles={selectedFiles} />
+            ))}
           </div>
 
           {/* PAGINATION (grid) */}

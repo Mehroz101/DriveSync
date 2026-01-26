@@ -682,6 +682,7 @@ export const deleteFilesService = async (
   const session = await mongoose.startSession();
   let deletedCount = 0;
   const failedFiles: any[] = [];
+  const revokedAccounts: { id: string; email: string }[] = [];
 
   try {
     await session.withTransaction(async () => {
@@ -707,125 +708,175 @@ export const deleteFilesService = async (
 
         // 2. Drive Authentication Setup
         const driveAccountId = item.driveId || fileDoc.driveAccountId;
-        // Use the imported DriveAccount model and cast the .lean() result to our interface
-        const account = (await DriveAccount.findById(
-          driveAccountId
-        ).lean()) as DriveAccountDoc | null;
-
+        const account = await DriveAccount.findById(driveAccountId).lean()
         if (!account || (!account.refreshToken && !account.accessToken)) {
           console.error(
             "❌ Missing Auth Credentials for account:",
             driveAccountId
           );
-          throw new Error(`AuthFailed:${item.fileId}`);
-        }
-
-        // 3. Drive Operation (Remove Access/Trash)
-        try {
-          // Assuming createGoogleAuthClient is defined in your utils
-          const auth = createGoogleAuthClient(account);
-          const drive = google.drive({ version: "v3", auth });
-
-          // !!! CRITICAL FIX: Ensure 'permissions' is in the fields list !!!
-          const meta = await drive.files.get({
-            fileId: fileDoc.googleFileId,
-            fields: "id, ownedByMe, capabilities, parents, permissions",
-            supportsAllDrives: true,
-          });
-          console.log("permissions", meta.data);
-
-          console.log(
-            `DEBUG: File Owner Email: ${
-              meta.data.permissions?.find((p) => p.role === "owner")
-                ?.emailAddress
-            }`
-          );
-          console.log(`DEBUG: Authenticated User Email: ${account.email}`);
-          console.log(
-            `Drive Ownership Status: ${
-              meta.data.ownedByMe ? "OWNER" : "SHARED/READER"
-            }`
-          );
-
-          if (meta.data.ownedByMe) {
-            // User owns the file, so they can trash it normally
-            console.log("➡ Action: Trashing owned file via update");
-            await drive.files.update({
-              fileId: fileDoc.googleFileId,
-              supportsAllDrives: true,
-              requestBody: { trashed: true },
+          // Mark account as needing reauth and record failure, but continue
+          const acctId = (account && account._id) || driveAccountId;
+          if (!revokedAccounts.find((a) => a.id === String(acctId))) {
+            revokedAccounts.push({ id: String(acctId), email: account?.email || "" });
+          }
+          failedFiles.push({ fileId: item.fileId, reason: "auth_missing" });
+          // Persist revocation status so the UI can show reconnect CTA
+          try {
+            await DriveAccount.findByIdAndUpdate(acctId, {
+              connectionStatus: 'revoked',
+              accessToken: null,
             });
-            const canRemove = meta.data.capabilities?.canRemoveMyDriveParent;
+          } catch (e) {
+            console.error('Failed to mark account revoked in DB', e);
+          }
+          // Still attempt DB removal to keep UI consistent
+        } else {
+          // 3. Drive Operation (Remove Access/Trash)
+          try {
+            const auth = createGoogleAuthClient(account);
+            const drive = google.drive({ version: "v3", auth });
 
-            if (canRemove && meta.data.parents?.length) {
-              console.log("➡ SHARED VIEWER: Removing My Drive reference");
+            // !!! CRITICAL FIX: Ensure 'permissions' is in the fields list !!!
+            const meta = await drive.files.get({
+              fileId: fileDoc.googleFileId,
+              fields: "id, ownedByMe, capabilities, parents, permissions",
+              supportsAllDrives: true,
+            });
 
+            console.log("permissions", meta.data);
+
+            if (meta.data.ownedByMe) {
+              // User owns the file, so they can trash it normally
+              console.log("➡ Action: Trashing owned file via update");
               await drive.files.update({
                 fileId: fileDoc.googleFileId,
                 supportsAllDrives: true,
-                removeParents: meta.data.parents.join(","),
+                requestBody: { trashed: true },
               });
-            }
-            console.log("✅ Drive: Owned file moved to trash.");
-          } else {
-            // User does not own the file. Must remove their permission explicitly.
-            console.log(
-              "➡ Action: Removing shared access via permissions.delete"
-            );
 
-            // Find the permission ID that matches the current authenticated user's email
-            const userPermission = meta.data.permissions?.find(
-              (p) => p.emailAddress === account.email
-            );
+              const canRemove = meta.data.capabilities?.canRemoveMyDriveParent;
 
-            if (userPermission && userPermission.id) {
-              console.log(
-                `DEBUG: Found permission ID ${userPermission.id} for user email.`
-              );
-              await drive.permissions.delete({
-                fileId: fileDoc.googleFileId,
-                permissionId: userPermission.id,
-                supportsAllDrives: true,
-              });
-              console.log(
-                "✅ Drive: Shared file access revoked successfully. File removed from user's view."
-              );
+              if (canRemove && meta.data.parents?.length) {
+                console.log("➡ SHARED VIEWER: Removing My Drive reference");
+
+                await drive.files.update({
+                  fileId: fileDoc.googleFileId,
+                  supportsAllDrives: true,
+                  removeParents: meta.data.parents.join(","),
+                });
+              }
+              console.log("✅ Drive: Owned file moved to trash.");
             } else {
-              console.warn(
-                "ℹ️ Could not find an explicit permission ID for this user's email. File might already be effectively removed from view."
+              // User does not own the file. Must remove their permission explicitly.
+              console.log(
+                "➡ Action: Removing shared access via permissions.delete"
               );
+
+              // Find the permission ID that matches the current authenticated user's email
+              const userPermission = meta.data.permissions?.find(
+                (p) => p.emailAddress === account.email
+              );
+
+              if (userPermission && userPermission.id) {
+                console.log(
+                  `DEBUG: Found permission ID ${userPermission.id} for user email.`
+                );
+                await drive.permissions.delete({
+                  fileId: fileDoc.googleFileId,
+                  permissionId: userPermission.id,
+                  supportsAllDrives: true,
+                });
+                console.log(
+                  "✅ Drive: Shared file access revoked successfully. File removed from user's view."
+                );
+              } else {
+                console.warn(
+                  "ℹ️ Could not find an explicit permission ID for this user's email. File might already be effectively removed from view."
+                );
+              }
             }
-          }
 
-          console.log("✅ Drive sync operation complete.");
-        } catch (driveErr: any) {
-          const status = driveErr?.code || driveErr?.response?.status;
-          console.error(
-            `❌ Drive API Error [Status: ${status}]: ${driveErr.message}`
-          );
+            console.log("✅ Drive operation complete for", item.fileId);
+          } catch (driveErr: any) {
+            const status = driveErr?.code || driveErr?.response?.status;
+            const message = String(driveErr?.message || driveErr?.response?.data || "");
+            console.error(
+              `❌ Drive API Error [Status: ${status}]: ${message}`
+            );
 
-          if (status !== 404) {
-            // Abort DB transaction if a real sync error occurred (not just 'already gone')
-            throw new Error(`DriveSyncError:${item.fileId}`);
+            // Handle specific error cases without aborting the entire transaction
+            if (status === 404) {
+              // File already gone — treat as success from user's perspective
+              console.warn(`ℹ️ File ${item.fileId} not found on Drive (404). Proceeding to DB cleanup.`);
+            } else if (
+              status === 401 ||
+              message.includes("invalid_grant") ||
+              /token revoked/i.test(message)
+            ) {
+              // Authentication has been revoked — mark account for reauth
+              const acctId = (account && (account as any)._id) || driveAccountId;
+              if (!revokedAccounts.find((a) => a.id === String(acctId))) {
+                revokedAccounts.push({ id: String(acctId), email: (account && (account as any).email) || "" });
+              }
+
+              failedFiles.push({ fileId: item.fileId, reason: "auth_revoked", details: message });
+              console.error(`🔴 Auth revoked for account ${account?.email || driveAccountId}.`);
+
+              // Persist revocation status in DB
+              try {
+                await DriveAccount.findByIdAndUpdate(acctId, {
+                  connectionStatus: 'revoked',
+                  accessToken: null,
+                });
+              } catch (e) {
+                console.error('Failed to mark account revoked in DB', e);
+              }
+            } else if (status === 403 || /insufficient/i.test(message)) {
+              // Insufficient permission / scopes. Mark account for reauth so they can re-grant necessary scopes.
+              const acctId = (account && (account as any)._id) || driveAccountId;
+              if (!revokedAccounts.find((a) => a.id === String(acctId))) {
+                revokedAccounts.push({ id: String(acctId), email: (account && (account as any).email) || "" });
+              }
+
+              failedFiles.push({ fileId: item.fileId, reason: "insufficient_scopes", details: message });
+              console.error(`🔒 Insufficient scopes for account ${account?.email || driveAccountId}.`);
+
+              // Persist revocation/status change so UI can show reconnect
+              try {
+                await DriveAccount.findByIdAndUpdate(acctId, {
+                  connectionStatus: 'revoked',
+                });
+              } catch (e) {
+                console.error('Failed to mark account revoked in DB', e);
+              }
+            } else {
+              // Unknown drive error — record and continue
+              failedFiles.push({ fileId: item.fileId, reason: "drive_error", details: message });
+            }
           }
         }
 
-        // // 4. Database Delete
-        const dbResult = await File.findByIdAndUpdate(fileDoc._id,{
-            trashed: true,
-        }).session(session);
+        // // 4. Database Delete / Mark trashed
+        try {
+          await File.findByIdAndUpdate(
+            fileDoc._id,
+            {
+              trashed: true,
+            },
+            { session }
+          );
 
-       
-
-        deletedCount++;
-        console.log("✅ DB: Record deleted successfully.");
+          deletedCount++;
+          console.log("✅ DB: Record marked trashed successfully.");
+        } catch (dbErr: any) {
+          console.error("❌ DB error while marking file trashed:", dbErr.message || dbErr);
+          failedFiles.push({ fileId: item.fileId, reason: "db_error", details: dbErr.message || String(dbErr) });
+        }
       }
     });
 
-    console.log(
-      `\n🎯 SUCCESS: Transaction committed. Deleted ${deletedCount} files.`
-    );
-    return { success: true, deletedCount, failedFiles };
+    console.log(`\n🎯 SUCCESS: Transaction committed. Deleted ${deletedCount} files.`);
+    return { success: true, deletedCount, failedFiles, revokedAccounts };
   } catch (err: any) {
     console.error("\n🔥 TRANSACTION ABORTED:", err.message);
     // Log who requested the delete and why it failed for debugging
@@ -840,6 +891,7 @@ export const deleteFilesService = async (
       error: err.message,
       deletedCount: 0,
       failedFiles,
+      revokedAccounts,
     };
   } finally {
     await session.endSession();

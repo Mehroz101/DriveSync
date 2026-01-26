@@ -68,12 +68,25 @@ export const allDrivesFilesSync = async (): Promise<DriveFile[]> => {
     console.log(error);
   }
 };
-export const deleteFilesAPI = async (data: { fileId: string; driveId: string }[]): Promise<{ success: boolean }> => {
+
+export interface DeleteFilesResponse {
+  success: boolean;
+  deletedCount?: number;
+  failedFiles?: { fileId: string; reason?: string }[];
+  revokedAccounts?: { id: string; email?: string }[];
+  error?: string;
+}
+
+export const deleteFilesAPI = async (
+  data: { fileId: string; driveId: string }[]
+): Promise<DeleteFilesResponse> => {
   try {
-    const response = await apiClient.post("/file/delete-files", data);
-    return { success: response.data.success };
-  } catch (error) {
+    const response = await apiClient.post<DeleteFilesResponse>("/file/delete-files", data);
+    // Return the backend's full response so callers can show details (deletedCount, failedFiles)
+    return response.data;
+  } catch (error: unknown) {
     console.log(error);
-    return { success: false };
+    const message = error instanceof Error ? error.message : "Request failed";
+    return { success: false, error: message };
   }
 };
