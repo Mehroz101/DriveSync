@@ -64,7 +64,12 @@ import type { DriveFile, FileType } from "@/types";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useDeleteFiles } from "@/mutations/files/useDeleteFiles";
 import { DeleteFileDialog } from "@/components/common/deleteDialog";
-import { MIME_FILTER_MAP, FILE_FILTER_CATEGORIES, SIZE_FILTER_OPTIONS, DATE_PRESETS } from "@/constants/fileFilters";
+import {
+  MIME_FILTER_MAP,
+  FILE_FILTER_CATEGORIES,
+  SIZE_FILTER_OPTIONS,
+  DATE_PRESETS,
+} from "@/constants/fileFilters";
 
 import FilterBar from "@/components/files/FilterBar";
 import FileCard from "@/components/files/FileCard";
@@ -187,7 +192,8 @@ export default function FilesExplorer() {
   const { refetch: refetchDriveFiles, isLoading: isSyncing } =
     useAllDrivesFilesSync();
   const { toast } = useToast();
-  const [deleteResponse, setDeleteResponse] = useState<DeleteFilesResponse | null>(null);
+  const [deleteResponse, setDeleteResponse] =
+    useState<DeleteFilesResponse | null>(null);
   const { mutateAsync: reconnectDrive } = useReconnectDrive();
   /* ---------- Normalize API Response ---------- */
 
@@ -276,7 +282,9 @@ export default function FilesExplorer() {
     // Implement download logic here
   };
 
-  const deleteFiles = async (items?: { fileId: string; driveId?: string }[]) => {
+  const deleteFiles = async (
+    items?: { fileId: string; driveId?: string }[]
+  ) => {
     const payload = items ? items : selectedFiles;
     if (payload.length === 0) return;
 
@@ -287,19 +295,34 @@ export default function FilesExplorer() {
       setDeleteResponse(result);
 
       if (result.success) {
-        toast({ title: "Files deleted", description: `${result.deletedCount ?? payload.length} files removed` });
+        toast({
+          title: "Files deleted",
+          description: `${result.deletedCount ?? payload.length} files removed`,
+        });
         setSelectedFiles([]);
       } else {
-        toast({ title: "Delete failed", description: result.error || "Failed to delete files" });
+        toast({
+          title: "Delete failed",
+          description: result.error || "Failed to delete files",
+        });
       }
 
       // If backend returned failedFiles, show warning toast
       if (result.failedFiles && result.failedFiles.length > 0) {
-        toast({ title: "Partial Failure", description: `${result.failedFiles.length} files could not be fully removed.` });
+        toast({
+          title: "Partial Failure",
+          description: `${result.failedFiles.length} files could not be fully removed.`,
+        });
       }
     } catch (err) {
-      setDeleteResponse({ success: false, error: (err instanceof Error ? err.message : String(err)) });
-      toast({ title: "Delete failed", description: "An unexpected error occurred" });
+      setDeleteResponse({
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast({
+        title: "Delete failed",
+        description: "An unexpected error occurred",
+      });
     }
   };
 
@@ -377,7 +400,16 @@ export default function FilesExplorer() {
           </Button>
 
           <DeleteFileDialog
-            trigger={<Button size="sm" variant="destructive" disabled={deleteFilesMutation.status === "pending"}><Trash2 className="h-4 w-4 mr-2" />Delete</Button>}
+            trigger={
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={deleteFilesMutation.status === "pending"}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            }
             onConfirm={async () => await deleteFiles()}
             title={`Delete ${selectedFiles.length} files?`}
             description={`This will attempt to remove files from Drive and then mark them trashed in the DB. Some files may fail to remove from Drive.`}
@@ -393,42 +425,64 @@ export default function FilesExplorer() {
             <div className="flex justify-between items-start gap-4">
               <div>
                 <AlertTitle>
-                  {deleteResponse.success ? `Deleted ${deleteResponse.deletedCount ?? 0} files` : "Delete failed"}
+                  {deleteResponse.success
+                    ? `Deleted ${deleteResponse.deletedCount ?? 0} files`
+                    : "Delete failed"}
                 </AlertTitle>
                 <AlertDescription>
                   {deleteResponse.success
-                    ? deleteResponse.failedFiles && deleteResponse.failedFiles.length > 0
+                    ? deleteResponse.failedFiles &&
+                      deleteResponse.failedFiles.length > 0
                       ? `${deleteResponse.failedFiles.length} file(s) failed to remove.`
                       : "All files removed successfully."
-                    : deleteResponse.error || "An error occurred while deleting files."}
+                    : deleteResponse.error ||
+                      "An error occurred while deleting files."}
                 </AlertDescription>
               </div>
               <div>
-                <Button variant="ghost" size="sm" onClick={() => setDeleteResponse(null)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDeleteResponse(null)}
+                >
                   Dismiss
                 </Button>
               </div>
             </div>
-            {deleteResponse?.revokedAccounts && deleteResponse.revokedAccounts.length > 0 && (
-              <div className="mt-3 flex gap-2">
-                <p className="text-sm text-muted-foreground mr-2">The following accounts need reauthorization:</p>
-                <div className="flex gap-2">
-                  {deleteResponse.revokedAccounts.map((a) => (
-                    <Button key={a.id} size="sm" variant="outline" onClick={async () => {
-                      try {
-                        const resp = await reconnectDrive(a.id);
-                        if (resp && resp.authUrl) {
-                          window.location.href = resp.authUrl;
-                        }
-                      } catch (e) {
-                        console.error('Reconnect failed', e);
-                        toast({ title: 'Reconnect failed', description: 'Unable to start reauthorization flow' });
-                      }
-                    }}>{a.email || a.id}</Button>
-                  ))}
+            {deleteResponse?.revokedAccounts &&
+              deleteResponse.revokedAccounts.length > 0 && (
+                <div className="mt-3 flex gap-2">
+                  <p className="text-sm text-muted-foreground mr-2">
+                    The following accounts need reauthorization:
+                  </p>
+                  <div className="flex gap-2">
+                    {deleteResponse.revokedAccounts.map((a) => (
+                      <Button
+                        key={a.id}
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const resp = await reconnectDrive(a.id);
+                            if (resp && resp.authUrl) {
+                              window.location.href = resp.authUrl;
+                            }
+                          } catch (e) {
+                            console.error("Reconnect failed", e);
+                            toast({
+                              title: "Reconnect failed",
+                              description:
+                                "Unable to start reauthorization flow",
+                            });
+                          }
+                        }}
+                      >
+                        {a.email || a.id}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </Alert>
         </div>
       )}
@@ -574,10 +628,28 @@ export default function FilesExplorer() {
 
                           <DropdownMenuSeparator />
 
-                          <DropdownMenuItem className="text-destructive gap-2">
+                          <DropdownMenuItem
+                            className="text-destructive gap-2"
+                            onSelect={(e) => e.preventDefault()}
+                          >
                             <DeleteFileDialog
-                              trigger={<div className="flex gap-2 items-center text-destructive cursor-pointer"><Trash2 className="h-4 w-4" />Delete</div>}
-                              onConfirm={async () => await deleteFiles([{ fileId: file._id!, driveId: file.driveAccountId }])}
+                              trigger={
+                                <div className="flex gap-2 items-center text-destructive cursor-pointer">
+                                  <Trash2 className="h-4 w-4" />
+                                  Delete
+                                </div>
+                              }
+                              onConfirm={async () =>
+                                await deleteFiles([
+                                  {
+                                    fileId: file._id!,
+                                    driveId: file.driveAccountId,
+                                  },
+                                ])
+                              }
+                              title={`Delete file?`}
+                              description={`This will attempt to remove files from Drive and then mark them trashed in the DB. Some files may fail to remove from Drive.`}
+                              confirmLabel={`Delete`}
                             />
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -622,7 +694,13 @@ export default function FilesExplorer() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {files.map((file) => (
-              <FileCard key={file._id} file={file} drives={drives} toggleFile={toggleFile} selectedFiles={selectedFiles} />
+              <FileCard
+                key={file._id}
+                file={file}
+                drives={drives}
+                toggleFile={toggleFile}
+                selectedFiles={selectedFiles}
+              />
             ))}
           </div>
 
