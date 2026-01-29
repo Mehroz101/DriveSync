@@ -12,6 +12,8 @@ import googleAuthRoutes from "./routes/auth.router.js";
 import emailAuthRoutes from "./routes/auth.routes.js";
 import fileRoutes from "./routes/file.routes.js";
 import searchRoutes from "./routes/search.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js";
+import duplicatesRoutes from "./routes/duplicates.routes.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import connectDB from "./auth/db.js";
 import util from "node:util";
@@ -71,6 +73,8 @@ async function startServer() {
     app.use("/api/auth", googleAuthRoutes);
     app.use("/api/profile", profileRoutes);
     app.use("/api", searchRoutes);
+    app.use("/api/analytics", analyticsRoutes);
+    app.use("/api/duplicates", duplicatesRoutes);
     app.use(errorHandler);
 
     const port = process.env.PORT || 4000;

@@ -1,61 +1,38 @@
-import { useState, useEffect } from 'react';
-import { Copy, Trash2, Eye, CheckCircle2, AlertCircle, Search, RefreshCw, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { Copy, Trash2, Eye, CheckCircle2, AlertCircle, Search, RefreshCw, Loader2, Grid, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { FileIcon } from '@/components/shared/FileIcon';
 import { SkeletonCard } from '@/components/shared/SkeletonCard';
-import { getDuplicates, getDashboardStats, scanForDuplicates } from '@/services/api';
+import { useDuplicates } from '@/queries/duplicates/useDuplicates';
+import { useDriveAccounts } from '@/queries/drive/useDriveAccounts';
 import { formatBytes, formatDate } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type { DuplicateGroup, DashboardStats } from '@/types';
+import DuplicateCard from '@/components/duplicates/DuplicateCard';
 
 export default function Duplicates() {
-  const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
+  const [selectedDuplicates, setSelectedDuplicates] = useState<string[]>([]);
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      const [dupRes, statsRes] = await Promise.all([
-        getDuplicates(),
-        getDashboardStats(),
-      ]);
-      if (dupRes.success) setDuplicates(dupRes.data);
-      if (statsRes.success) setStats(statsRes.data);
-      setLoading(false);
-    }
-    fetchData();
-  }, []);
+  const { data: duplicates = [], isLoading, error } = useDuplicates();
+  const { data: drives = [] } = useDriveAccounts();
 
-  const toggleFile = (fileId: string) => {
-    setSelectedFiles((prev) =>
-      prev.includes(fileId) ? prev.filter((id) => id !== fileId) : [...prev, fileId]
+  const toggleDuplicate = (duplicate: DuplicateGroup) => {
+    setSelectedDuplicates((prev) =>
+      prev.includes(duplicate.id) ? prev.filter((id) => id !== duplicate.id) : [...prev, duplicate.id]
     );
   };
 
-  const handleScan = async () => {
-    setIsScanning(true);
-    await scanForDuplicates();
-    // Re-fetch duplicates after scan
-    const dupRes = await getDuplicates();
-    if (dupRes.success) setDuplicates(dupRes.data);
-    setIsScanning(false);
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="space-y-4 md:space-y-6 animate-fade-in">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Duplicate Files</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Loading...</p>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Duplicates</h1>
         </div>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
         </div>
@@ -63,167 +40,135 @@ export default function Duplicates() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Duplicates</h1>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Error Loading Duplicates</h3>
+              <p className="text-muted-foreground">
+                Failed to load duplicate files. Please try again.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4 md:space-y-6 animate-fade-in">
-      {/* Page Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Duplicate Files</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Find and remove duplicates.
+          <h1 className="text-3xl font-bold">Duplicates</h1>
+          <p className="text-muted-foreground">
+            Found {duplicates.length} duplicate groups
           </p>
         </div>
-        
-        <Button onClick={handleScan} disabled={isScanning} className="gap-2 w-full sm:w-auto">
-          <RefreshCw className={cn('h-4 w-4', isScanning && 'animate-spin')} />
-          {isScanning ? 'Scanning...' : 'Scan for Duplicates'}
-        </Button>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid gap-3 md:gap-4 grid-cols-3">
-        <Card>
-          <CardContent className="pt-4 md:pt-6">
-            <div className="flex items-center gap-3 md:gap-4">
-              <div className="flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl bg-warning/10 shrink-0">
-                <Copy className="h-5 w-5 md:h-6 md:w-6 text-warning" />
-              </div>
-              <div>
-                <p className="text-lg md:text-2xl font-bold">{stats?.duplicateFiles || 0}</p>
-                <p className="text-[10px] md:text-sm text-muted-foreground">Duplicates</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-4 md:pt-6">
-            <div className="flex items-center gap-3 md:gap-4">
-              <div className="flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl bg-destructive/10 shrink-0">
-                <AlertCircle className="h-5 w-5 md:h-6 md:w-6 text-destructive" />
-              </div>
-              <div>
-                <p className="text-lg md:text-2xl font-bold">{formatBytes(stats?.duplicateSpace || 0)}</p>
-                <p className="text-[10px] md:text-sm text-muted-foreground">Wasted</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-4 md:pt-6">
-            <div className="flex items-center gap-3 md:gap-4">
-              <div className="flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl bg-success/10 shrink-0">
-                <CheckCircle2 className="h-5 w-5 md:h-6 md:w-6 text-success" />
-              </div>
-              <div>
-                <p className="text-lg md:text-2xl font-bold">{duplicates.length}</p>
-                <p className="text-[10px] md:text-sm text-muted-foreground">Groups</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Selection Actions */}
-      {selectedFiles.length > 0 && (
-        <div className="flex items-center gap-3 rounded-lg border bg-accent/5 px-4 py-3">
-          <span className="text-sm font-medium">
-            {selectedFiles.length} selected
-          </span>
-          <Button variant="outline" size="sm" className="gap-2 text-destructive hover:bg-destructive hover:text-destructive-foreground">
-            <Trash2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Delete Selected</span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === "list" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("list")}
+          >
+            <List className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setSelectedFiles([])}>
-            Clear
+          <Button
+            variant={viewMode === "grid" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("grid")}
+          >
+            <Grid className="h-4 w-4" />
           </Button>
         </div>
-      )}
+      </div>
 
-      {/* Duplicate Groups */}
-      <div className="space-y-4">
-        {duplicates.map((group) => (
-          <Card key={group.id} className="overflow-hidden">
-            <CardHeader className="bg-muted/30 py-3 md:py-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <FileIcon type={group.files[0]?.type || 'other'} showBackground />
-                  <div className="min-w-0">
-                    <CardTitle className="text-sm md:text-base truncate">{group.name}</CardTitle>
-                    <CardDescription className="text-xs">
-                      {group.files.length} copies · {formatBytes(group.totalWastedSpace)} wasted
-                    </CardDescription>
-                  </div>
-                </div>
-                <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 shrink-0">
-                  {group.files.length} duplicates
-                </Badge>
-              </div>
-            </CardHeader>
-            
-            <CardContent className="p-0">
-              <div className="divide-y">
-                {group.files.map((file, index) => (
-                  <div
-                    key={file.id}
-                    className={cn(
-                      'flex items-center gap-3 md:gap-4 px-4 md:px-6 py-3 md:py-4 transition-colors hover:bg-muted/30',
-                      selectedFiles.includes(file.id) && 'bg-accent/5'
-                    )}
-                  >
+      {duplicates.length === 0 ? (
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Duplicates Found</h3>
+              <p className="text-muted-foreground">
+                Great! No duplicate files were found in your drives.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : viewMode === "grid" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {duplicates.map((duplicate) => (
+            <DuplicateCard
+              key={duplicate.id}
+              duplicate={duplicate}
+              drives={drives}
+              onSelect={toggleDuplicate}
+              selected={selectedDuplicates.includes(duplicate.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {duplicates.map((group) => (
+            <Card key={group.id}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
                     <Checkbox
-                      checked={selectedFiles.includes(file.id)}
-                      onCheckedChange={() => toggleFile(file.id)}
+                      checked={selectedDuplicates.includes(group.id)}
+                      onCheckedChange={() => toggleDuplicate(group)}
                     />
-                    
-                    <div className="flex-1 min-w-0">
+                    <img src={group.files[0].iconLink} alt="" className="h-8 w-8" />
+                    <div>
+                      <CardTitle className="text-lg">{group.name}</CardTitle>
+                      <CardDescription>
+                        {formatBytes(group.size)} • {group.files.length} files • Wasted: {formatBytes(group.totalWastedSpace)}
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Badge variant="destructive">{group.files.length - 1} duplicates</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {group.files.map((file, index) => (
+                    <div key={file._id} className="flex items-center justify-between p-2 border rounded">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium truncate text-sm">{file.name}</p>
-                        {index === 0 && (
-                          <Badge variant="secondary" className="text-[10px] shrink-0">Original</Badge>
+                        <span className="text-sm font-medium">
+                          {index === 0 ? "Keep" : "Duplicate"}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {drives.find((d) => d._id === file.driveAccountId)?.email || "Unknown"}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          Modified {formatDate(file.modifiedTime)}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={file.webViewLink} target="_blank" rel="noreferrer">
+                            <Eye className="h-4 w-4" />
+                          </a>
+                        </Button>
+                        {index > 0 && (
+                          <Button size="sm" variant="destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {file.driveName} · {formatDate(file.lastModified)}
-                      </p>
                     </div>
-                    
-                    <div className="flex items-center gap-1 md:gap-2 shrink-0">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-
-        {duplicates.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 py-12 md:py-16">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
-              <CheckCircle2 className="h-8 w-8 text-success" />
-            </div>
-            <h3 className="mt-4 text-lg font-semibold">No Duplicates Found</h3>
-            <p className="mt-2 text-sm text-muted-foreground text-center max-w-sm px-4">
-              Your drives are clean! Run a scan to check for duplicate files.
-            </p>
-            <Button className="mt-6 gap-2" onClick={handleScan}>
-              <Search className="h-4 w-4" />
-              Scan Now
-            </Button>
-          </div>
-        )}
-      </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
