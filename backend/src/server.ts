@@ -12,6 +12,7 @@ import googleAuthRoutes from "./routes/auth.router.js";
 import emailAuthRoutes from "./routes/auth.routes.js";
 import fileRoutes from "./routes/file.routes.js";
 import searchRoutes from "./routes/search.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import connectDB from "./auth/db.js";
 import util from "node:util";
@@ -66,11 +67,12 @@ async function startServer() {
       res.send("Server is running");
     });
     app.use("/api/email-auth", emailAuthRoutes);
+    app.use("/api/auth", googleAuthRoutes);
     app.use("/api/drive", driveRoutes);
     app.use("/api/file", fileRoutes);
-    app.use("/api/auth", googleAuthRoutes);
     app.use("/api/profile", profileRoutes);
     app.use("/api", searchRoutes);
+    app.use("/api/analytics", analyticsRoutes);
     app.use(errorHandler);
 
     const port = process.env.PORT || 4000;

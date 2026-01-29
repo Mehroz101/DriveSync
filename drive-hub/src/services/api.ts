@@ -24,6 +24,7 @@ import {
   dashboardStats,
   userPreferences,
 } from '@/data/mockData';
+import { apiClient } from '@/api/http/axios.client';
 
 // Simulate API delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -55,7 +56,7 @@ export async function getDrives(): Promise<ApiResponse<Drive[]>> {
 
 export async function getDriveById(id: string): Promise<ApiResponse<Drive | null>> {
   await delay(300);
-  const drive = drives.find(d => d.id === id) || null;
+  const drive = drives.find(d => d._id === id) || null;
   return {
     data: drive,
     success: !!drive,
@@ -67,7 +68,7 @@ export async function connectDrive(authCode: string, name: string): Promise<ApiR
   await delay(1000);
   // Simulate creating a new drive
   const newDrive: Drive = {
-    id: `drive-${Date.now()}`,
+    _id: `drive-${Date.now()}`,
     name,
     email: 'new@drive.com',
     avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${name}`,
@@ -156,7 +157,7 @@ export async function getFiles(filter?: FileFilter): Promise<ApiResponse<DriveFi
 
 export async function getFileById(id: string): Promise<ApiResponse<DriveFile | null>> {
   await delay(300);
-  const file = files.find(f => f.id === id) || null;
+  const file = files.find(f => f._id === id) || null;
   return {
     data: file,
     success: !!file,
@@ -170,10 +171,10 @@ export async function uploadFile(
 ): Promise<ApiResponse<DriveFile>> {
   await delay(1500);
   const newFile: DriveFile = {
-    id: `file-${Date.now()}`,
+    _id: `file-${Date.now()}`,
     name: fileName,
     driveId,
-    driveName: drives.find(d => d.id === driveId)?.name || 'Unknown',
+    driveName: drives.find(d => d._id === driveId)?.name || 'Unknown',
     size,
     type: 'document',
     mimeType: 'application/octet-stream',
@@ -268,35 +269,87 @@ export async function getStorageAnalytics(
   startDate?: string,
   endDate?: string
 ): Promise<ApiResponse<StorageAnalytics[]>> {
-  await delay(500);
-  return {
-    data: storageAnalytics,
-    success: true,
-  };
+  try {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const response = await apiClient.get(`/analytics/storage-analytics?${params.toString()}`);
+    return {
+      data: response.data.data,
+      success: response.data.success,
+    };
+  } catch (error) {
+    return {
+      data: [],
+      success: false,
+      error: { code: 'FETCH_ERROR', message: 'Failed to fetch storage analytics' }
+    };
+  }
 }
 
 export async function getFileTypeDistribution(): Promise<ApiResponse<FileTypeDistribution[]>> {
-  await delay(400);
-  return {
-    data: fileTypeDistribution,
-    success: true,
-  };
+  try {
+    const response = await apiClient.get('/analytics/file-type-distribution');
+    return {
+      data: response.data.data,
+      success: response.data.success,
+    };
+  } catch (error) {
+    return {
+      data: [],
+      success: false,
+      error: { code: 'FETCH_ERROR', message: 'Failed to fetch file type distribution' }
+    };
+  }
 }
 
 export async function getDriveUsageStats(): Promise<ApiResponse<DriveUsageStats[]>> {
-  await delay(400);
-  return {
-    data: driveUsageStats,
-    success: true,
-  };
+  try {
+    const response = await apiClient.get('/analytics/drive-usage-stats');
+    return {
+      data: response.data.data,
+      success: response.data.success,
+    };
+  } catch (error) {
+    return {
+      data: [],
+      success: false,
+      error: { code: 'FETCH_ERROR', message: 'Failed to fetch drive usage stats' }
+    };
+  }
 }
 
 export async function getDashboardStats(): Promise<ApiResponse<DashboardStats>> {
-  await delay(300);
-  return {
-    data: dashboardStats,
-    success: true,
-  };
+  try {
+    const response = await apiClient.get('/analytics/dashboard-stats');
+    return {
+      data: response.data.data,
+      success: response.data.success,
+    };
+  } catch (error) {
+    return {
+      data: null,
+      success: false,
+      error: { code: 'FETCH_ERROR', message: 'Failed to fetch dashboard stats' }
+    };
+  }
+}
+
+export async function getAnalyticsFiles(): Promise<ApiResponse<DriveFile[]>> {
+  try {
+    const response = await apiClient.get('/analytics/files?limit=100');
+    return {
+      data: response.data.data,
+      success: response.data.success,
+    };
+  } catch (error) {
+    return {
+      data: [],
+      success: false,
+      error: { code: 'FETCH_ERROR', message: 'Failed to fetch files' }
+    };
+  }
 }
 
 // ============================================

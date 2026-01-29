@@ -59,6 +59,7 @@ export interface Drive {
   };
   connectionStatus: "active" | "revoked" | "error";
   lastFetched: string;
+  lastSyncedAt?: string;
 }
 
 // Normalized DriveFile shape (backend may send _id, driveAccountId, nested drive info, owners, etc.)
@@ -194,29 +195,9 @@ export interface FileFilter {
 
 // Stats Types
 export interface DashboardStats {
-  _id: string;
-  connectionStatus: "active" | "revoked" | "error";
-  owner: {
-    displayName: string;
-    emailAddress:string;
-    photoLink:string;
-    me:boolean
-  };
-  storage: {
-    total: number;
-    used: number;
-    usedInDrive: number;
-    usedInTrash: number;
-    remaining: number;
-  };
-  stats: {
-    totalFiles: number;
-    totalFolders: number;
-    trashedFiles: number;
-    duplicateFiles: number;
-  };
-  meta: {
-    fetchedAt: string;
-    source: string;
-  };
+  totalFiles: number;
+  totalStorageUsed: number;
+  connectedDrives: number;
+  duplicateFiles: number;
+  duplicateSpace: number;
 }
