@@ -68,9 +68,9 @@ async function startServer() {
       res.send("Server is running");
     });
     app.use("/api/email-auth", emailAuthRoutes);
+    app.use("/api/auth", googleAuthRoutes);
     app.use("/api/drive", driveRoutes);
     app.use("/api/file", fileRoutes);
-    app.use("/api/auth", googleAuthRoutes);
     app.use("/api/profile", profileRoutes);
     app.use("/api", searchRoutes);
     app.use("/api/analytics", analyticsRoutes);
