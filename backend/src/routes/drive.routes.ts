@@ -1,5 +1,5 @@
 import express from "express";
-import { getDriveFiles, getMyProfile, getAllDriveAccounts, addDriveAccount, removeDriveAccount, syncAllDrivesData,syncDrive, driveStats } from "../controllers/drive.controller.js";
+import { getDriveFiles, getMyProfile, getAllDriveAccounts, addDriveAccount, removeDriveAccount, syncAllDrivesData,syncDrive, driveStats, getDriveAccountProfileImage } from "../controllers/drive.controller.js";
 import { authenticateToken } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -18,5 +18,8 @@ router.delete("/accounts/:accountId", authenticateToken, removeDriveAccount);
 
 // Profile route - protected
 router.get("/profile", authenticateToken, getMyProfile);
+
+// Profile image proxy route - protected
+router.get("/profile-image", getDriveAccountProfileImage);
 
 export default router;

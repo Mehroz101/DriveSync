@@ -79,9 +79,12 @@ export default function DuplicateCard({ duplicate, drives, onSelect, selected }:
           {duplicate.files.slice(0, 3).map((file) => {
             const drive = drives?.find((d) => d._id === file.driveAccountId);
             return (
-              <Badge key={file._id} variant="outline" className="text-xs">
-                {drive?.email || file.drive?.email || "Unknown"}
-              </Badge>
+                <>
+                <img src={file.driveAccount?.profileImg ? `http://localhost:4000/api/drive/profile-image?accountId=${file.driveAccountId}` : "/placeholder.svg"} alt={file.driveAccount?.email || drive?.email || "Unknown"} title={file.driveAccount?.email || drive?.email || "Unknown"} className="h-8 w-8 rounded-full" onError={(e) => { const img = e.currentTarget as HTMLImageElement; img.onerror = null; img.src = "/placeholder.svg"; }} />
+              {/* <Badge key={file._id} variant="outline" className="text-xs">
+                {file.driveAccount?.email || drive?.email || "Unknown"}
+              </Badge> */}
+                </>
             );
           })}
           {duplicate.files.length > 3 && (

@@ -13,6 +13,7 @@ import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
 import { getUserById } from "../services/auth.service.js";
 import driveAccount from "../models/driveAccount.js";
 import { generateOAuthState } from "../utils/oauthState.js";
+import axios from "axios";
 const QUOTA_REFRESH_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 export const getDriveFiles = async (
@@ -249,6 +250,59 @@ export const syncDrive = async (
     next(error);
   }
 };
+export const getDriveAccountProfileImage = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const accountId = req.query.accountId as string;
+
+    if (!accountId) {
+      res.status(400).json({ error: "accountId is required" });
+      return;
+    }
+
+    // Load drive account from DB
+    const account = await driveAccount.findById(accountId);
+    if (!account) {
+      res.status(404).json({ error: "Drive account not found" });
+      return;
+    }
+
+    // Verify the account belongs to the authenticated user
+    if (account.userId.toString() !== req.userId) {
+      res.status(403).json({
+        error: "You do not have permission to access this profile image",
+      });
+      return;
+    }
+
+    const profileImgUrl = account.profileImg;
+    if (!profileImgUrl) {
+      res.status(404).json({ error: "Profile image not available" });
+      return;
+    }
+
+    // Fetch the profile image via server-side request
+    const axiosResp = await axios.get(profileImgUrl, {
+      responseType: "stream",
+      timeout: 15000,
+    });
+
+    // Forward content-type and cache headers
+    const contentType = axiosResp.headers["content-type"] || "image/jpeg";
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "public, max-age=86400"); // 24 hours
+
+    // Pipe stream
+    axiosResp.data.pipe(res);
+  } catch (error) {
+    console.error("getDriveAccountProfileImage error:", error);
+    res.status(500).json({ error: "Failed to fetch profile image" });
+  }
+};
+
 export const driveStats = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const user = await getUserById(req.userId!);

@@ -576,7 +576,7 @@ export default function FilesExplorer() {
                   </TableCell>
 
                   <TableCell className="hidden md:table-cell">
-                    {file.drive?.email || file.driveAccountId}
+                    {file.driveAccount?.email || file.driveAccountId}
                   </TableCell>
 
                   <TableCell className="hidden sm:table-cell">

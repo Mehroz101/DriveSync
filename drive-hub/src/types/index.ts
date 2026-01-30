@@ -70,12 +70,7 @@ export interface DriveFile {
   driveId?: string;
   driveName?: string;
   // optional nested drive info returned by backend
-  drive?: {
-    connectionStatus?: 'active' | 'revoked' | 'error' | 'inactive' | string;
-    email?: string;
-    name?: string;
-  };
-
+  driveAccount?: Drive;
   name: string;
   size: number;
   type?: FileType;

@@ -27,9 +27,37 @@ export const getDuplicatesService = async (userId: string): Promise<DuplicateGro
       },
     },
     {
+      $lookup: {
+        from: "driveaccounts", // collection name
+        localField: "driveAccountId",
+        foreignField: "_id",
+        as: "driveAccount",
+      },
+    },
+    {
+      $unwind: {
+        path: "$driveAccount",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
       $group: {
         _id: { name: "$name", size: "$size" },
-        files: { $push: "$$ROOT" },
+        files: {
+          $push: {
+            _id: "$_id",
+            name: "$name",
+            size: "$size",
+            mimeType: "$mimeType",
+            webViewLink: "$webViewLink",
+            iconLink: "$iconLink",
+            thumbnailUrl: "$thumbnailUrl",
+            modifiedTime: "$modifiedTime",
+            driveAccountId: "$driveAccountId",
+            driveAccount: "$driveAccount",
+            googleFileId: "$googleFileId",
+          },
+        },
         count: { $sum: 1 },
       },
     },
