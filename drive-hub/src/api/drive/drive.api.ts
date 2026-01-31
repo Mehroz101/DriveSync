@@ -1,5 +1,5 @@
 import { apiClient } from "../http/axios.client";
-import type { DashboardStats, Drive } from "@/types";
+import type { DashboardStats, Drive, DriveAccount } from "@/types";
 
 export const addGoogleDriveAccount = async (): Promise<{ authUrl: string }> => {
   try {
@@ -50,7 +50,7 @@ export const getAccountRefetchById = async (
     throw error;
   }
 };
-export const getAllDriveStats = async (): Promise<DashboardStats[]> => {
+export const getAllDriveStats = async (): Promise<DriveAccount[]> => {
   try {
     const response = await apiClient.get("/drive/stats");
     console.log(response);

@@ -6,6 +6,7 @@ import { Trash2, Eye, Users, Star } from "lucide-react";
 import { formatBytes, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { DuplicateGroup, DriveFile, Drive } from "@/types";
+import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 
 interface DuplicateCardProps {
   duplicate: DuplicateGroup;
@@ -14,12 +15,22 @@ interface DuplicateCardProps {
   selected?: boolean;
 }
 
-export default function DuplicateCard({ duplicate, drives, onSelect, selected }: DuplicateCardProps) {
+export default function DuplicateCard({
+  duplicate,
+  drives,
+  onSelect,
+  selected,
+}: DuplicateCardProps) {
   const primaryFile = duplicate.files[0];
   const duplicateCount = duplicate.files.length - 1;
 
   return (
-    <Card className={cn("group overflow-hidden transition-shadow hover:shadow-md cursor-pointer", selected && "ring-2 ring-primary")}>
+    <Card
+      className={cn(
+        "group overflow-hidden transition-shadow hover:shadow-md cursor-pointer",
+        selected && "ring-2 ring-primary"
+      )}
+    >
       <div className="relative aspect-video bg-muted flex items-center justify-center overflow-hidden">
         {primaryFile.googleFileId && primaryFile.driveAccountId ? (
           <img
@@ -46,7 +57,11 @@ export default function DuplicateCard({ duplicate, drives, onSelect, selected }:
             }}
           />
         ) : (
-          <img src={primaryFile.iconLink} alt="" className="h-12 w-12 opacity-60" />
+          <img
+            src={primaryFile.iconLink}
+            alt=""
+            className="h-12 w-12 opacity-60"
+          />
         )}
 
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -79,12 +94,21 @@ export default function DuplicateCard({ duplicate, drives, onSelect, selected }:
           {duplicate.files.slice(0, 3).map((file) => {
             const drive = drives?.find((d) => d._id === file.driveAccountId);
             return (
-                <>
-                <img src={file.driveAccount?.profileImg ? `http://localhost:4000/api/drive/profile-image?accountId=${file.driveAccountId}` : "/placeholder.svg"} alt={file.driveAccount?.email || drive?.email || "Unknown"} title={file.driveAccount?.email || drive?.email || "Unknown"} className="h-8 w-8 rounded-full" onError={(e) => { const img = e.currentTarget as HTMLImageElement; img.onerror = null; img.src = "/placeholder.svg"; }} />
-              {/* <Badge key={file._id} variant="outline" className="text-xs">
+              <>
+                <Avatar className="h-6 w-6 md:h-8 md:w-8 rounded-full shrink-0 overflow-hidden">
+                  <AvatarImage
+                    src={file.driveAccount?.profileImg || ""}
+                    alt={file.driveAccount?.email || "Unknown"}
+                    title={file.driveAccount?.email || "Unknown"}
+                  />
+                  <AvatarFallback>
+                    {file.driveAccount?.name.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>{" "}
+                {/* <Badge key={file._id} variant="outline" className="text-xs">
                 {file.driveAccount?.email || drive?.email || "Unknown"}
               </Badge> */}
-                </>
+              </>
             );
           })}
           {duplicate.files.length > 3 && (

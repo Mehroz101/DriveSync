@@ -39,6 +39,8 @@ export interface DriveMeta {
 }
 
 export interface DriveAccount {
+  _id: string;
+  connectionStatus: "active" | "revoked" | "error";
   owner: DriveOwner;
   storage: DriveStorage;
   stats: DriveStats;

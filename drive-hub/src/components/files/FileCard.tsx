@@ -20,7 +20,7 @@ function isDashboardStats(d?: Drive | DashboardStats): d is DashboardStats {
 }
 
 export default function FileCard({ file, drives, toggleFile, selectedFiles }: FileCardProps) {
-  const driveInfo = drives?.find((d) => (d as Drive | DashboardStats)._id === file.driveAccountId) as Drive | DashboardStats | undefined;
+  const driveInfo = drives?.find((d) => (d as DriveFile | DashboardStats)._id === file.driveAccountId) as Drive | DashboardStats | undefined;
 
   // Safely derive owner photo/email from either DashboardStats (owner) or Drive (profileImg/email)
   const ownerPhoto = isDashboardStats(driveInfo) ? driveInfo.owner?.photoLink : (driveInfo as Drive | undefined)?.profileImg;

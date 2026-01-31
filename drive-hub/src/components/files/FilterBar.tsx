@@ -22,7 +22,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { FILE_FILTER_CATEGORIES, SIZE_FILTER_OPTIONS, DATE_PRESETS } from "@/constants/fileFilters";
 import { cn } from "@/lib/utils";
 
-import type { Drive, DashboardStats } from "@/types";
+import type { Drive, DashboardStats, DriveFile } from "@/types";
 
 type DriveOption = {
   _id: string;
@@ -36,7 +36,7 @@ type DriveOption = {
 interface FilterBarProps {
   selectedDrive: string;
   setSelectedDrive: (id: string) => void;
-  drives?: (Drive | DashboardStats)[]; // accept both Drive and DashboardStats shapes
+  drives?: (Drive | DriveFile)[]; // accept both Drive and DriveFile shapes
   searchInput: string;
   setSearchInput: (v: string) => void;
   viewMode: "list" | "grid";
