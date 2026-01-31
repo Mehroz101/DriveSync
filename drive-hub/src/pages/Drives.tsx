@@ -153,7 +153,7 @@ export default function Drives() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {drives.map((drive) => (
+          {Array.isArray(drives) && drives.map((drive) => (
             <div
               key={drive._id}
               className={cn(
