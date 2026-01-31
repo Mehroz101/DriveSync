@@ -13,6 +13,7 @@ import {
   ChevronRight,
   FileText,
   X,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -28,6 +29,7 @@ const navItems: NavItem[] = [
   { title: 'Dashboard', href: '/', icon: LayoutDashboard },
   { title: 'Drives', href: '/drives', icon: HardDrive },
   { title: 'Files Explorer', href: '/files', icon: FolderOpen },
+  { title: 'Trashed', href: '/trashed', icon: Trash2 },
   { title: 'Analytics', href: '/analytics', icon: BarChart3 },
   { title: 'Duplicates', href: '/duplicates', icon: Copy },
   { title: 'Activity Log', href: '/activity', icon: Activity },

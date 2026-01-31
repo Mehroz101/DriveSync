@@ -6,25 +6,25 @@ import { Button } from "@/components/ui/button";
 import { Eye, Users, Star, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import type { DriveFile, Drive, DashboardStats } from "@/types";
+import type { DriveFile, DriveAccount } from "@/types";
 
 interface FileCardProps {
   file: DriveFile;
-  drives?: (Drive | DashboardStats)[];
+  drives?: DriveAccount[];
   toggleFile: (id: string, driveId?: string) => void;
   selectedFiles: { fileId: string; driveId?: string }[];
 }
 
-function isDashboardStats(d?: Drive | DashboardStats): d is DashboardStats {
-  return !!d && "owner" in d;
+function isDriveAccount(d?: DriveAccount): d is DriveAccount {
+  return !!d && "connectionStatus" in d;
 }
 
 export default function FileCard({ file, drives, toggleFile, selectedFiles }: FileCardProps) {
-  const driveInfo = drives?.find((d) => (d as DriveFile | DashboardStats)._id === file.driveAccountId) as Drive | DashboardStats | undefined;
+  const driveInfo = drives?.find((d) => d._id === file.driveAccountId) as DriveAccount | undefined;
 
-  // Safely derive owner photo/email from either DashboardStats (owner) or Drive (profileImg/email)
-  const ownerPhoto = isDashboardStats(driveInfo) ? driveInfo.owner?.photoLink : (driveInfo as Drive | undefined)?.profileImg;
-  const ownerEmail = isDashboardStats(driveInfo) ? driveInfo.owner?.emailAddress : (driveInfo as Drive | undefined)?.email || file.drive?.email || "—";
+  // Safely derive owner photo/email from either DriveAccount (owner)
+  const ownerPhoto = isDriveAccount(driveInfo) ? driveInfo.owner?.photoLink : undefined;
+  const ownerEmail = isDriveAccount(driveInfo) ? driveInfo.owner?.emailAddress : file.driveAccount?.email || "—";
 
   return (
     <Card className={cn("group overflow-hidden transition-shadow hover:shadow-md cursor-pointer", selectedFiles.some((f) => f.fileId === file._id) && "ring-2 ring-primary")}>

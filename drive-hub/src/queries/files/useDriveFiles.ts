@@ -20,3 +20,13 @@ export const useAllDrivesFilesSync = () => {
   });
 };
 
+export const useTrashedFiles = (queryParams: FilesQuery = {}) => {
+  return useQuery({
+    queryKey: filesKey.trashed({ ...queryParams, trashed: true }),
+    queryFn: ({ signal }) => allDrivesFiles({ ...queryParams, trashed: true }, signal),
+    staleTime: 30 * 1000, // 30 seconds cache
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
+};
+

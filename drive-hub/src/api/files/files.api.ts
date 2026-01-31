@@ -90,3 +90,16 @@ export const deleteFilesAPI = async (
     return { success: false, error: message };
   }
 };
+
+export const permanentlyDeleteTrashedFilesAPI = async (
+  data: { fileId: string; driveId: string }[]
+): Promise<DeleteFilesResponse> => {
+  try {
+    const response = await apiClient.post<DeleteFilesResponse>("/file/permanently-delete-trashed", data);
+    return response.data;
+  } catch (error: unknown) {
+    console.log(error);
+    const message = error instanceof Error ? error.message : "Request failed";
+    return { success: false, error: message };
+  }
+};

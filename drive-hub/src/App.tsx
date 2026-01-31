@@ -16,6 +16,7 @@ import ApiDocs from "@/pages/ApiDocs";
 import NotFound from "@/pages/NotFound";
 import Login from "@/pages/auth/Login";
 import Signup from "@/pages/auth/Signup";
+import Trashed from "@/pages/Trashed";
 
 const App = () => (
   <AuthProvider>
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/" element={<Dashboard />} />
             <Route path="/drives" element={<Drives />} />
             <Route path="/files" element={<FilesExplorer />} />
+            <Route path="/trashed" element={<Trashed />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/duplicates" element={<Duplicates />} />
             <Route path="/activity" element={<ActivityLog />} />

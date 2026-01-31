@@ -5,6 +5,11 @@ import DriveAccount from "../models/driveAccount.js";
 import File from "../models/file.js";
 import mongoose from "mongoose";
 
+interface FileItem {
+  fileId: string;
+  driveId: string;
+}
+
 //used
 export const fetchUserFilesService = async ({
   userId,
@@ -651,19 +656,9 @@ export const fetchDriveStatsFromDatabase = async (driveAccount: any) => {
   } catch (error) {
     console.error("Failed to fetch drive stats from database:", error);
   }
-};
-
-interface FileItem {
-  fileId: string;
-  driveId?: string;
 }
 
 // Define interfaces for better TypeScript support (assuming these models exist)
-interface FileItem {
-  fileId: string;
-  driveId?: string;
-}
-
 interface DriveAccountDoc {
   refreshToken?: string;
   accessToken?: string;
@@ -896,6 +891,106 @@ export const deleteFilesService = async (
   } finally {
     await session.endSession();
     console.log("🧹 Session closed");
+  }
+};
+
+export const permanentlyDeleteTrashedFilesService = async (
+  userId: string,
+  data: FileItem[]
+) => {
+  console.log("🚀 Permanently Delete Trashed Files Started by User:", userId);
+  console.log("Payload:", data);
+
+  const session = await mongoose.startSession();
+  let deletedCount = 0;
+  const failedFiles: any[] = [];
+  const revokedAccounts: { id: string; email: string }[] = [];
+
+  try {
+    await session.withTransaction(async () => {
+      for (const item of data) {
+        console.log(`\n--- Processing: ${item.fileId} ---`);
+
+        // 1. Fetch file inside session, ensure it's trashed
+        const fileDoc: any = await File.findOne({
+          userId,
+          trashed: true,
+          $or: [
+            { _id: mongoose.isValidObjectId(item.fileId) ? item.fileId : null },
+            { googleFileId: item.fileId },
+          ],
+        }).session(session);
+
+        if (!fileDoc) {
+          console.warn(
+            `⚠️ Trashed file record for ${item.fileId} missing in DB for user ${userId}`
+          );
+          failedFiles.push({ fileId: item.fileId, reason: "db_not_found_or_not_trashed" });
+          continue;
+        }
+
+        // 2. Drive Authentication Setup
+        const driveAccountId = item.driveId || fileDoc.driveAccountId;
+        const account = await DriveAccount.findById(driveAccountId).lean();
+        if (!account || (!account.refreshToken && !account.accessToken)) {
+          console.error(
+            "❌ Missing Auth Credentials for account:",
+            driveAccountId
+          );
+          const acctId = (account && account._id) || driveAccountId;
+          if (!revokedAccounts.find((a) => a.id === String(acctId))) {
+            revokedAccounts.push({ id: String(acctId), email: account?.email || "" });
+          }
+          failedFiles.push({ fileId: item.fileId, reason: "auth_missing" });
+          continue; // Don't remove from DB if can't delete from Drive
+        }
+
+        // 3. Permanently delete from Google Drive
+        try {
+          const auth = createGoogleAuthClient(account);
+          const drive = google.drive({ version: "v3", auth });
+
+          console.log("➡ Action: Permanently deleting trashed file");
+          await drive.files.delete({
+            fileId: fileDoc.googleFileId,
+            supportsAllDrives: true,
+          });
+
+          // 4. Remove from DB
+          await File.findByIdAndDelete(fileDoc._id).session(session);
+          deletedCount++;
+          console.log(`✅ Permanently deleted: ${item.fileId}`);
+
+        } catch (driveError: any) {
+          console.error(`❌ Drive API error for ${item.fileId}:`, driveError.message);
+          failedFiles.push({ fileId: item.fileId, reason: driveError.message });
+          continue;
+        }
+      }
+    });
+
+    await session.endSession();
+
+    console.log("🎉 Permanently Delete Trashed Files Completed");
+    console.log(`Deleted: ${deletedCount}, Failed: ${failedFiles.length}`);
+
+    return {
+      success: true,
+      deletedCount,
+      failedFiles,
+      revokedAccounts,
+    };
+
+  } catch (error: any) {
+    await session.endSession();
+    console.error("💥 Transaction failed:", error);
+    return {
+      success: false,
+      error: error.message,
+      deletedCount,
+      failedFiles,
+      revokedAccounts,
+    };
   }
 };
 

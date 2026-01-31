@@ -9,6 +9,7 @@ import {
   deleteFilesService,
   fetchDriveAccountFiles,
   fetchUserFilesService,
+  permanentlyDeleteTrashedFilesService,
 } from "../services/drive.service.js";
 import axios from "axios";
 import { google } from "googleapis";
@@ -161,7 +162,6 @@ export const getDriveThumbnail = async (
   try {
     const fileId = req.query.fileId as string;
     const accountId = req.query.accountId as string;
-    console.log("getDriveThumbnail called with:", { fileId, accountId });
     if (!fileId || !accountId) {
       return res
         .status(400)
@@ -246,6 +246,29 @@ export const deleteFiles = async (
     const response  = await deleteFilesService(req.userId, data);
     res.json(response);
   
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const permanentlyDeleteTrashedFiles = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const data = req.body;
+    if (!Array.isArray(data) || data.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "Request body must be a non-empty array" });
+    }
+    const response = await permanentlyDeleteTrashedFilesService(req.userId, data);
+    res.json(response);
+
   } catch (error) {
     next(error);
   }

@@ -21,6 +21,10 @@ export const filesKey = {
   list: (params: FilesQuery) =>
     [...filesKey.filesRoot(), "list", params] as const,
 
+  // Trashed files
+  trashed: (params: FilesQuery) =>
+    [...filesKey.filesRoot(), "trashed", params] as const,
+
   // Single file details
   detail: (fileId: string) =>
     [...filesKey.filesRoot(), "detail", fileId] as const,

@@ -1,4 +1,5 @@
-import { deleteFilesAPI } from "@/api/files/files.api";
+import { duplicatesKeys } from "@/api/duplicates/duplicates.keys";
+import { deleteFilesAPI, permanentlyDeleteTrashedFilesAPI } from "@/api/files/files.api";
 import { filesKey } from "@/api/files/files.keys";
 import { apiClient } from "@/api/http/axios.client";
 import { deleteFiles } from "@/services/api";
@@ -9,6 +10,22 @@ export const useDeleteFiles = () => {
 
   return useMutation({
     mutationFn: deleteFilesAPI,
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: filesKey.all,
+      });
+      queryClient.invalidateQueries({
+        queryKey: duplicatesKeys.all(),
+      });
+    },
+  });
+};
+
+export const usePermanentlyDeleteTrashedFiles = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: permanentlyDeleteTrashedFilesAPI,
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: filesKey.all,

@@ -22,7 +22,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { FILE_FILTER_CATEGORIES, SIZE_FILTER_OPTIONS, DATE_PRESETS } from "@/constants/fileFilters";
 import { cn } from "@/lib/utils";
 
-import type { Drive, DashboardStats, DriveFile } from "@/types";
+import type { Drive, DashboardStats, DriveFile, DriveAccount } from "@/types";
 
 type DriveOption = {
   _id: string;
@@ -36,7 +36,7 @@ type DriveOption = {
 interface FilterBarProps {
   selectedDrive: string;
   setSelectedDrive: (id: string) => void;
-  drives?: (Drive | DriveFile)[]; // accept both Drive and DriveFile shapes
+  drives?: DriveAccount[]; // accept DriveAccount shapes
   searchInput: string;
   setSearchInput: (v: string) => void;
   viewMode: "list" | "grid";
@@ -93,10 +93,9 @@ export default function FilterBar({
           <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Drives" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Drives</SelectItem>
-            {drives?.map((dRaw: Drive | DashboardStats) => {
-              const d = dRaw as DriveOption;
-              const photo = d.owner?.photoLink ?? d.profileImg;
-              const emailLabel = d.owner?.emailAddress?.split('@')[0] ?? d.email?.split('@')[0] ?? d.name ?? '—';
+            {drives?.map((d: DriveAccount) => {
+              const photo = d.owner?.photoLink ?? d.owner?.photoLink;
+              const emailLabel = d.owner?.emailAddress?.split('@')[0] ?? d.owner?.displayName ?? '—';
               const id = d._id;
               const status = d.connectionStatus;
               return (
