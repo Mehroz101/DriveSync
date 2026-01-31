@@ -28,7 +28,7 @@ export const getGoogleDriveAccounts = async (): Promise<Drive[]> => {
     throw error;
   }
 };
-export const getAccountsRefetch = async (): Promise<DashboardStats[]> => {
+export const getAccountsRefetch = async (): Promise<DriveAccount[]> => {
   try {
     const response = await apiClient.get("/drive/sync-all");
     console.log(response);

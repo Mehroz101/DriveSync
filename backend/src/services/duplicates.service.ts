@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import File from "../models/file.js";
-import { cacheService } from "./cache.service.js";
 
 export interface DuplicateGroup {
   id: string;
@@ -12,11 +11,7 @@ export interface DuplicateGroup {
 }
 
 export const getDuplicatesService = async (userId: string): Promise<DuplicateGroup[]> => {
-  const cacheKey = `duplicates_${userId}`;
-  const cached = cacheService.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
+
 
   // Use aggregation for better performance
   const duplicates = await File.aggregate([
@@ -85,6 +80,5 @@ export const getDuplicatesService = async (userId: string): Promise<DuplicateGro
     },
   ]);
 
-  cacheService.set(cacheKey, duplicates, 10); // 10 minutes
   return duplicates;
 };

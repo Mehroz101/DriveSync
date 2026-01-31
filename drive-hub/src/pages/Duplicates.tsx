@@ -15,7 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
 import { useDuplicates } from "@/queries/duplicates/useDuplicates";
@@ -23,23 +22,15 @@ import { useDriveAccounts } from "@/queries/drive/useDriveAccounts";
 import { formatBytes, formatDate } from "@/lib/formatters";
 import type { DuplicateGroup } from "@/types";
 import DuplicateCard from "@/components/duplicates/DuplicateCard";
-import { DeleteFileDialog } from "@/components/common/deleteDialog";
-import { useDeleteFiles } from "@/mutations/files/useDeleteFiles";
-import { useToast } from "@/hooks/use-toast";
-import { DeleteFilesResponse } from "@/api/files/files.api";
+import DeleteFileButton from "@/components/common/DeleteFileButton";
+import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 
 export default function Duplicates() {
   const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
   const [selectedDuplicates, setSelectedDuplicates] = useState<string[]>([]);
-  const [selectedFiles, setSelectedFiles] = useState<
-    { driveId: string; fileId: string }[]
-  >([]);
-    const [deleteResponse, setDeleteResponse] =
-      useState<DeleteFilesResponse | null>(null);
+
   const { data: duplicates = [], isLoading, error } = useDuplicates();
   const { data: drives = [] } = useDriveAccounts();
-  const deleteFilesMutation = useDeleteFiles();
-  const { toast } = useToast();
 
   const toggleDuplicate = (duplicate: DuplicateGroup) => {
     setSelectedDuplicates((prev) =>
@@ -48,63 +39,17 @@ export default function Duplicates() {
         : [...prev, duplicate.id]
     );
   };
-  const deleteFiles = async (
-    items?: { fileId: string; driveId?: string }[]
-  ) => {
-    const payload = items ? items : selectedFiles;
-    if (payload.length === 0) return;
 
-    try {
-      const result = await deleteFilesMutation.mutateAsync(
-        payload.map((p) => ({ fileId: p.fileId, driveId: p.driveId }))
-      );
-      setDeleteResponse(result);
-
-      if (result.success) {
-        toast({
-          title: "Files deleted",
-          description: `${result.deletedCount ?? payload.length} files removed`,
-        });
-        setSelectedFiles([]);
-      } else {
-        toast({
-          title: "Delete failed",
-          description: result.error || "Failed to delete files",
-        });
-      }
-
-      // If backend returned failedFiles, show warning toast
-      if (result.failedFiles && result.failedFiles.length > 0) {
-        toast({
-          title: "Partial Failure",
-          description: `${result.failedFiles.length} files could not be fully removed.`,
-        });
-      }
-    } catch (err) {
-      setDeleteResponse({
-        success: false,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      toast({
-        title: "Delete failed",
-        description: "An unexpected error occurred",
-      });
-    }
-  };
-
-  useEffect(() => {
-    if (deleteFilesMutation.isSuccess) {
-      setSelectedFiles([]);
-    }
-  }, [deleteFilesMutation.isSuccess]);
+  /* -------------------- Loading State -------------------- */
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Duplicates</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold">Duplicates</h1>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 sm:gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
@@ -113,49 +58,47 @@ export default function Duplicates() {
     );
   }
 
+  /* -------------------- Error State -------------------- */
+
   if (error) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Duplicates</h1>
-        </div>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">
-                Error Loading Duplicates
-              </h3>
-              <p className="text-muted-foreground">
-                Failed to load duplicate files. Please try again.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="max-w-xl mx-auto">
+        <CardContent className="p-10 text-center space-y-4">
+          <AlertCircle className="h-14 w-14 text-destructive mx-auto" />
+          <h3 className="text-lg font-semibold">Failed to Load Duplicates</h3>
+          <p className="text-muted-foreground">
+            Please refresh or check your connection.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
+  /* -------------------- Main UI -------------------- */
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Duplicates</h1>
-          <p className="text-muted-foreground">
-            Found {duplicates.length} duplicate groups
+          <h1 className="text-2xl sm:text-3xl font-bold">Duplicates</h1>
+          <p className="text-sm text-muted-foreground">
+            {duplicates.length} duplicate groups detected
           </p>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 bg-muted p-1 rounded-lg self-start sm:self-auto">
           <Button
-            variant={viewMode === "list" ? "default" : "outline"}
             size="sm"
+            variant={viewMode === "list" ? "default" : "ghost"}
             onClick={() => setViewMode("list")}
           >
             <List className="h-4 w-4" />
           </Button>
+
           <Button
-            variant={viewMode === "grid" ? "default" : "outline"}
             size="sm"
+            variant={viewMode === "grid" ? "default" : "ghost"}
             onClick={() => setViewMode("grid")}
           >
             <Grid className="h-4 w-4" />
@@ -163,84 +106,131 @@ export default function Duplicates() {
         </div>
       </div>
 
-      {duplicates.length === 0 ? (
+      {/* Empty State */}
+      {duplicates.length === 0 && (
         <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">
-                No Duplicates Found
-              </h3>
-              <p className="text-muted-foreground">
-                Great! No duplicate files were found in your drives.
-              </p>
-            </div>
+          <CardContent className="p-10 text-center space-y-4">
+            <CheckCircle2 className="h-14 w-14 text-green-500 mx-auto" />
+            <h3 className="text-lg font-semibold">No Duplicates Found</h3>
+            <p className="text-muted-foreground">
+              Your storage is fully optimized.
+            </p>
           </CardContent>
         </Card>
-      ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      )}
+
+      {/* Grid Mode */}
+      {viewMode === "grid" && duplicates.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 sm:gap-4">
           {duplicates.map((duplicate) => (
             <DuplicateCard
               key={duplicate.id}
               duplicate={duplicate}
               drives={drives}
-              onSelect={toggleDuplicate}
               selected={selectedDuplicates.includes(duplicate.id)}
+              onSelect={toggleDuplicate}
             />
           ))}
         </div>
-      ) : (
+      )}
+
+      {/* List Mode */}
+      {viewMode === "list" && duplicates.length > 0 && (
         <div className="space-y-4">
           {duplicates.map((group) => (
-            <Card key={group.id}>
+            <Card key={group.id} className="hover:shadow-md transition-shadow">
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <Checkbox
+                    <input
+                      type="checkbox"
                       checked={selectedDuplicates.includes(group.id)}
-                      onCheckedChange={() => toggleDuplicate(group)}
+                      onChange={() => toggleDuplicate(group)}
                     />
+
                     <img
                       src={group.files[0].iconLink}
                       alt=""
-                      className="h-8 w-8"
+                      className="h-9 w-9"
                     />
+
                     <div>
-                      <CardTitle className="text-lg">{group.name}</CardTitle>
-                      <CardDescription>
+                      <CardTitle className="text-base">{group.name}</CardTitle>
+                      <CardDescription className="text-xs">
                         {formatBytes(group.size)} • {group.files.length} files •
-                        Wasted: {formatBytes(group.totalWastedSpace)}
+                        Wasted {formatBytes(group.totalWastedSpace)}
                       </CardDescription>
                     </div>
                   </div>
-                  <Badge variant="destructive">
+
+                  <Badge
+                    variant="secondary"
+                    className="text-xs font-medium w-fit"
+                  >
                     {group.files.length - 1} duplicates
                   </Badge>
                 </div>
               </CardHeader>
+
               <CardContent>
-                <div className="space-y-2">
+                <div className="flex  max-md:flex-wrap gap-3">
                   {group.files.map((file, index) => (
                     <div
                       key={file._id}
-                      className="flex items-center justify-between p-2 border rounded"
+                      className="flex flex-col w-full sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 border rounded-xl bg-card shadow-sm hover:shadow-md transition"
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">
-                          {index === 0 ? "Keep" : "Duplicate"}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          {file.driveAccount?.email ||
-                            drives.find((d) => d._id === file.driveAccountId)
-                              ?.email ||
-                            "Unknown"}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          Modified {formatDate(file.modifiedTime)}
-                        </span>
+                      {/* LEFT SIDE — FILE INFO */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Meta Info */}
+                        <div className="flex flex-col min-w-0">
+                          <div className="flex items-center gap-2 text-xs">
+                            <span
+                              className={`font-medium ${
+                                index === 0
+                                  ? "text-green-600"
+                                  : "text-orange-500"
+                              }`}
+                            >
+                              {index === 0 ? "Primary" : "Duplicate"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Avatar className="h-4 w-4 rounded-full shrink-0 overflow-hidden">
+                              <AvatarImage
+                                src={file.driveAccount?.profileImg || ""}
+                                alt={file.driveAccount?.email || "Unknown"}
+                                title={file.driveAccount?.email || "Unknown"}
+                              />
+                              <AvatarFallback>
+                                {file.driveAccount?.name
+                                  .slice(0, 2)
+                                  .toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>{" "}
+                            <span className="text-sm text-muted-foreground truncate max-w-[220px] sm:max-w-[320px]">
+                              {/* File Icon */}
+                              {file.driveAccount?.email ||
+                                drives.find(
+                                  (d) => d._id === file.driveAccountId
+                                )?.email ||
+                                "Unknown"}
+                            </span>
+                          </div>
+
+                          <span className="text-xs text-muted-foreground">
+                            Modified {formatDate(file.modifiedTime)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" asChild>
+
+                      {/* RIGHT SIDE — ACTIONS */}
+                      <div className="flex items-center gap-3 justify-end">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-9 w-9"
+                          asChild
+                        >
                           <a
                             href={file.webViewLink}
                             target="_blank"
@@ -249,30 +239,14 @@ export default function Duplicates() {
                             <Eye className="h-4 w-4" />
                           </a>
                         </Button>
+
                         {index > 0 && (
-                        <DeleteFileDialog
-                          trigger={
-                            <div className="flex gap-2 items-center text-destructive cursor-pointer">
-                              <Trash2 className="h-4 w-4" />
-                              
-                            </div>
-                          }
-                          onConfirm={async () =>
-                            await deleteFiles([
-                              {
-                                fileId: file._id!,
-                                driveId: file.driveAccountId,
-                              },
-                            ])
-                          }
-                          title={`Delete file?`}
-                          description={`This will attempt to remove files from Drive and then mark them trashed in the DB. Some files may fail to remove from Drive.`}
-                          confirmLabel={`Delete`}
-                        />
+                          <DeleteFileButton
+                            fileId={file._id!}
+                            driveId={file.driveAccountId}
+                            description="This will permanently remove the duplicate file."
+                          />
                         )}
-                          {/* <Button size="sm" variant="destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button> */}
                       </div>
                     </div>
                   ))}

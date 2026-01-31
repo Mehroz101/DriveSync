@@ -20,7 +20,7 @@ function isDriveAccount(d?: DriveAccount): d is DriveAccount {
 }
 
 export default function FileCard({ file, drives, toggleFile, selectedFiles }: FileCardProps) {
-  const driveInfo = drives?.find((d) => d._id === file.driveAccountId) as DriveAccount | undefined;
+  const driveInfo = Array.isArray(drives) ? drives.find((d) => d._id === file.driveAccountId) as DriveAccount | undefined : undefined;
 
   // Safely derive owner photo/email from either DriveAccount (owner)
   const ownerPhoto = isDriveAccount(driveInfo) ? driveInfo.owner?.photoLink : undefined;
@@ -44,7 +44,18 @@ export default function FileCard({ file, drives, toggleFile, selectedFiles }: Fi
         </div>
 
         <div className="absolute top-2 left-2">
-          <Checkbox checked={selectedFiles.some((f) => f.fileId === file._id)} onCheckedChange={() => toggleFile(file._id!, file.driveAccountId)} className="bg-background" />
+          <div className="flex justify-center items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedFiles.some(
+                          (f) => f.fileId === file._id!
+                        )}
+                        onChange={() =>
+                          toggleFile(file._id!, file.driveAccountId)
+                        }
+                      />
+                    </div>
+          {/* <Checkbox checked={selectedFiles.some((f) => f.fileId === file._id)} onCheckedChange={() => toggleFile(file._id!, file.driveAccountId)} className="bg-background" /> */}
         </div>
       </div>
 

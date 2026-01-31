@@ -90,10 +90,10 @@ export default function FilterBar({
         </div>
 
         <Select value={selectedDrive} onValueChange={setSelectedDrive}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Drives" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="All Drives" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Drives</SelectItem>
-            {drives?.map((d: DriveAccount) => {
+            {Array.isArray(drives) && drives.map((d: DriveAccount) => {
               const photo = d.owner?.photoLink ?? d.owner?.photoLink;
               const emailLabel = d.owner?.emailAddress?.split('@')[0] ?? d.owner?.displayName ?? '—';
               const id = d._id;
@@ -113,7 +113,7 @@ export default function FilterBar({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-[140px] justify-between">
+            <Button variant="outline" className="w-full sm:w-[140px] justify-between">
               {selectedTypes.length === 0 ? "All Types" : selectedTypes.length === 1 ? FILE_FILTER_CATEGORIES.find((c) => c.value === selectedTypes[0])?.label || selectedTypes[0] : `${selectedTypes.length} selected`}
             </Button>
           </DropdownMenuTrigger>
@@ -122,6 +122,12 @@ export default function FilterBar({
             <div className="px-2 py-1">
               <div className="flex items-center gap-2 px-2 py-1 cursor-pointer" onClick={() => setSelectedTypes([])}>
                 <Checkbox checked={selectedTypes.length === 0} />
+                <div className="flex justify-center items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedTypes.length === 0}
+                      />
+                    </div>
                 <span className="text-sm">All Types</span>
               </div>
 
@@ -129,7 +135,14 @@ export default function FilterBar({
 
               {FILE_FILTER_CATEGORIES.map((type) => (
                 <div key={type.value} className="flex items-center gap-2 px-2 py-1 cursor-pointer" onClick={() => toggleType(type.value)}>
-                  <Checkbox checked={selectedTypes.includes(type.value)} />
+                  {/* <Checkbox checked={selectedTypes.includes(type.value)} /> */}
+                   <div className="flex justify-center items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedTypes.includes(type.value)}
+                       
+                      />
+                    </div>
                   <span className="capitalize text-sm">{type.label}</span>
                 </div>
               ))}
@@ -138,7 +151,7 @@ export default function FilterBar({
         </DropdownMenu>
 
         <Select value={selectedSize} onValueChange={setSelectedSize}>
-          <SelectTrigger className="w-[130px]">
+          <SelectTrigger className="w-full sm:w-[130px]">
             <SelectValue placeholder="Any Size" />
           </SelectTrigger>
           <SelectContent>
@@ -151,7 +164,7 @@ export default function FilterBar({
         </Select>
 
         <Select value={selectedDatePreset} onValueChange={setSelectedDatePreset}>
-          <SelectTrigger className="w-[140px]"><Calendar className="h-4 w-4 mr-2" /> <SelectValue placeholder="Any Time" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[140px]"><Calendar className="h-4 w-4 mr-2" /> <SelectValue placeholder="Any Time" /></SelectTrigger>
           <SelectContent>
             {DATE_PRESETS.map((preset) => (
               <SelectItem key={preset.value} value={preset.value}>
@@ -161,7 +174,7 @@ export default function FilterBar({
           </SelectContent>
         </Select>
 
-        <div className="hidden sm:flex border rounded-lg p-1">
+        <div className=" sm:flex border rounded-lg p-1">
           <Button size="icon" variant="ghost" className={cn(viewMode === "list" && "bg-muted")} onClick={() => setViewMode("list")}><List className="h-4 w-4" /></Button>
           <Button size="icon" variant="ghost" className={cn(viewMode === "grid" && "bg-muted")} onClick={() => setViewMode("grid")}><Grid className="h-4 w-4" /></Button>
         </div>

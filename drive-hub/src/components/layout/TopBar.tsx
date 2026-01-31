@@ -29,7 +29,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryClient } from "@/queryClient";
 import { useDriveAccountsRefetch, useDriveAccountStats } from "@/queries/drive/useDriveAccounts";
-import { DashboardStats } from "@/types";
+import { DashboardStats, DriveAccount } from "@/types";
 
 interface TopBarProps {
   selectedDrives: string[];
@@ -43,7 +43,7 @@ export function TopBar({
   onMenuClick,
 }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats[]>([]);
+  const [dashboardStats, setDashboardStats] = useState<DriveAccount[]>([]);
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const { data: drives, isFetching } = useDriveAccountStats();
@@ -69,15 +69,13 @@ export function TopBar({
     await refetch();
   };
   useEffect(() => {
-    if (drives || syncAlltDrives) {
-      setDashboardStats(drives || syncAlltDrives || []);
+    const data = drives || syncAlltDrives;
+    if (Array.isArray(data)) {
+      setDashboardStats(data);
+    } else {
+      setDashboardStats([]);
     }
   }, [syncAlltDrives, drives]);
-  // const selectedDriveLabel = selectedDrives.length === 0
-  //   ? 'All Drives'
-  //   : selectedDrives.length === 1
-  //     ? drives.find(d => d.id === selectedDrives[0])?.name
-  //     : `${selectedDrives.length} Drives`;
 
   return (
     <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 md:px-6 gap-4">
@@ -167,7 +165,7 @@ export function TopBar({
             )}
           />
           {(!isFetching || !syncAllIsFetching) && dashboardStats[0]?.meta?.fetchedAt
-            ? formatDateTimeAgo(drives[0]?.meta?.fetchedAt.toString())
+            ? formatDateTimeAgo(dashboardStats[0]?.meta?.fetchedAt)
             : "-"}
         </Button>
 

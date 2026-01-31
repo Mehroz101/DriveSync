@@ -7,6 +7,7 @@ import { formatBytes, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { DuplicateGroup, DriveFile, Drive } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
+import DeleteFileButton from "../common/DeleteFileButton";
 
 interface DuplicateCardProps {
   duplicate: DuplicateGroup;
@@ -91,8 +92,7 @@ export default function DuplicateCard({
         </div>
 
         <div className="flex flex-wrap gap-1">
-          {duplicate.files.slice(0, 3).map((file) => {
-            const drive = drives?.find((d) => d._id === file.driveAccountId);
+          {duplicate.files.slice(0, 2).map((file) => {
             return (
               <>
                 <Avatar className="h-6 w-6 md:h-8 md:w-8 rounded-full shrink-0 overflow-hidden">
@@ -111,17 +111,22 @@ export default function DuplicateCard({
               </>
             );
           })}
-          {duplicate.files.length > 3 && (
+          {duplicate.files.length > 2 && (
             <Badge variant="outline" className="text-xs">
-              +{duplicate.files.length - 3} more
+              +{duplicate.files.length - 2} more
             </Badge>
           )}
         </div>
 
         <div className="flex gap-2 pt-2">
-          <Button size="sm" variant="outline" className="flex-1">
+          <DeleteFileButton
+            fileId={duplicate.files[0].googleFileId}
+            driveId={duplicate.files[0].driveAccountId}
+            description="This will permanently remove the duplicate file."
+          />
+          {/* <Button size="sm" variant="outline" className="flex-1">
             <Trash2 className="h-4 w-4 mr-1" /> Delete Duplicates
-          </Button>
+          </Button> */}
         </div>
       </CardContent>
     </Card>

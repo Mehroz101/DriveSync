@@ -48,9 +48,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FileIcon } from "@/components/shared/FileIcon";
 import { SkeletonTable } from "@/components/shared/SkeletonCard";
 
-import {
-  useTrashedFiles,
-} from "@/queries/files/useDriveFiles";
+import { useTrashedFiles } from "@/queries/files/useDriveFiles";
 import {
   useDriveAccounts,
   useDriveAccountStats,
@@ -66,6 +64,7 @@ import {
   usePermanentlyDeleteTrashedFiles,
 } from "@/mutations/files/useDeleteFiles";
 import { DeleteFileDialog } from "@/components/common/deleteDialog";
+import DeleteFileButton from "@/components/common/DeleteFileButton";
 import {
   MIME_FILTER_MAP,
   FILE_FILTER_CATEGORIES,
@@ -488,12 +487,22 @@ export default function Trashed() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
-                  <Checkbox
+                  {/* <Checkbox
                     checked={
                       files.length > 0 && selectedFiles.length === files.length
                     }
                     onCheckedChange={toggleAll}
-                  />
+                  /> */}
+                  <div className="flex justify-center items-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        files.length > 0 &&
+                        selectedFiles.length === files.length
+                      }
+                      onChange={toggleAll}
+                    />
+                  </div>
                 </TableHead>
 
                 <TableHead>Name</TableHead>
@@ -509,14 +518,25 @@ export default function Trashed() {
               {files.map((file) => (
                 <TableRow key={file._id}>
                   <TableCell>
-                    <Checkbox
+                    {/* <Checkbox
                       checked={selectedFiles.some(
                         (f) => f.fileId === file._id!
                       )}
                       onCheckedChange={() =>
                         toggleFile(file._id!, file.driveAccountId)
                       }
-                    />
+                    /> */}
+                    <div className="flex justify-center items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedFiles.some(
+                          (f) => f.fileId === file._id!
+                        )}
+                        onChange={() =>
+                          toggleFile(file._id!, file.driveAccountId)
+                        }
+                      />
+                    </div>
                   </TableCell>
 
                   <TableCell>
@@ -619,27 +639,18 @@ export default function Trashed() {
                           <DropdownMenuSeparator />
 
                           <DropdownMenuItem
-                            className="text-destructive gap-2"
+                            className="text-destructive gap-2 p-0"
                             onSelect={(e) => e.preventDefault()}
                           >
-                            <DeleteFileDialog
+                            <DeleteFileButton
+                              fileId={file._id!}
+                              driveId={file.driveAccountId}
                               trigger={
-                                <div className="flex gap-2 items-center text-destructive cursor-pointer">
+                                <div className="flex gap-2 items-center text-destructive cursor-pointer w-full px-2 py-1.5">
                                   <Trash2 className="h-4 w-4" />
                                   Delete
                                 </div>
                               }
-                              onConfirm={async () =>
-                                await deleteFiles([
-                                  {
-                                    fileId: file._id!,
-                                    driveId: file.driveAccountId,
-                                  },
-                                ])
-                              }
-                              title={`Delete file?`}
-                              description={`This will attempt to remove files from Drive and then mark them trashed in the DB. Some files may fail to remove from Drive.`}
-                              confirmLabel={`Delete`}
                             />
                           </DropdownMenuItem>
                         </DropdownMenuContent>

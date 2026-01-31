@@ -218,7 +218,7 @@ const StatsCards = ({ stats }: { stats: DashboardStats | undefined }) => {
   if (!stats) return null;
 
   return (
-    <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       <Card>
         <CardContent className="pt-4 md:pt-6">
           <div className="flex items-center gap-3 md:gap-4">
@@ -345,7 +345,7 @@ const GrowthCard = ({ storageChartData }:{storageChartData: storageChartData[]})
   );
 };
 const FileTypes = ({pieChartData}:{pieChartData: pieChartData[]}) =>{
-  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: unknown[] }) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: pieChartData }> }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
