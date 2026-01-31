@@ -582,7 +582,7 @@ export default function FilesExplorer() {
                   </TableCell>
 
                   <TableCell className="hidden md:table-cell">
-                    {file.driveAccount?.email || file.driveAccountId}
+                    {file.owners?.[0]?.emailAddress || "—"}
                   </TableCell>
 
                   <TableCell className="hidden sm:table-cell whitespace-nowrap">
