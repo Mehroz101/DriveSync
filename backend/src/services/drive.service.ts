@@ -4,6 +4,8 @@ import User from "../models/user.js";
 import DriveAccount from "../models/driveAccount.js";
 import File from "../models/file.js";
 import mongoose from "mongoose";
+import { handleTokenError, isAuthError } from "../utils/driveAuthUtils.js";
+import { DriveTokenExpiredError } from "../utils/driveAuthError.js";
 
 interface FileItem {
   fileId: string;
@@ -235,38 +237,20 @@ export const fetchDriveAccountFiles = async (driveAccount: any) => {
       description: file.description || "",
     }));
   } catch (error: any) {
-    // Check if this is an auth error (token expired/revoked)
-    const errData = error?.response?.data;
-    const statusCode = error?.response?.status || error?.code;
-    const errorMessage = String(error?.message || '').toLowerCase();
-    const errorReason = errData?.error?.errors?.[0]?.reason || errData?.error || '';
+    console.error(`❌ Error fetching files for account ${driveAccount.email}:`, error.message);
     
-    const isAuthError = 
-      statusCode === 401 ||
-      statusCode === 403 ||
-      errData?.error === 'invalid_grant' ||
-      String(errorReason).toLowerCase().includes('invalid') ||
-      String(errorReason).toLowerCase().includes('revoked') ||
-      errorMessage.includes('invalid_grant') ||
-      errorMessage.includes('token has been expired or revoked') ||
-      errorMessage.includes('invalid credentials') ||
-      errorMessage.includes('unauthorized');
-
-    if (isAuthError) {
+    // Use centralized auth error handling
+    if (isAuthError(error)) {
       console.error(`❌ Auth error for account ${driveAccount.email}: ${error.message}`);
-      // Update account status to revoked
+      
+      // Mark account as revoked
       await DriveAccount.findByIdAndUpdate(driveAccount._id, {
         connectionStatus: 'revoked',
         accessToken: null,
-        // Keep refreshToken in case user wants to reconnect
       });
       
-      // Throw a specific error so caller knows this was an auth issue
-      const authError: any = new Error(`AUTH_ERROR:${driveAccount._id}`);
-      authError.isAuthError = true;
-      authError.accountId = driveAccount._id;
-      authError.accountEmail = driveAccount.email;
-      throw authError;
+      // Throw specific auth error
+      throw new DriveTokenExpiredError(driveAccount._id, driveAccount.email);
     }
 
     // Re-throw other errors
@@ -277,21 +261,29 @@ export const fetchDriveAccountFiles = async (driveAccount: any) => {
 //used
 export const fetchUserProfile = async (driveAccount: any) => {
   console.log("=============Fetching user profile=============");
-  const auth = await refreshAccessToken(driveAccount);
-  const oauth2 = google.oauth2({ version: "v2", auth });
-  const profileResponse = await oauth2.userinfo.get();
-  const profile = profileResponse.data;
-  console.log(driveAccount);
-  // Update profile in DB
-  await User.findOneAndUpdate(
-    { email: driveAccount.email },
-    {
-      name: profile.name,
-      picture: profile.picture,
-    }
-  );
+  
+  try {
+    const auth = await refreshAccessToken(driveAccount);
+    const oauth2 = google.oauth2({ version: "v2", auth });
+    const profileResponse = await oauth2.userinfo.get();
+    const profile = profileResponse.data;
+    
+    console.log(driveAccount);
+    // Update profile in DB
+    await User.findOneAndUpdate(
+      { email: driveAccount.email },
+      {
+        name: profile.name,
+        picture: profile.picture,
+      }
+    );
 
-  return profile;
+    return profile;
+  } catch (error: any) {
+    // Centralized auth error handling will be done by refreshAccessToken
+    // Just re-throw the error
+    throw error;
+  }
 };
 
 // Search files across all connected drives
@@ -312,24 +304,31 @@ export const searchDriveFiles = async (userId: string, query: string) => {
 
 //used
 export const fetchDriveQuotaFromGoogle = async (driveAccount: any) => {
-  const oauth2Client = await refreshAccessToken(driveAccount);
+  try {
+    const oauth2Client = await refreshAccessToken(driveAccount);
 
-  const drive = google.drive({
-    version: "v3",
-    auth: oauth2Client,
-  });
+    const drive = google.drive({
+      version: "v3",
+      auth: oauth2Client,
+    });
 
-  const response = await drive.about.get({
-    fields: "storageQuota",
-  });
-  const quota = response.data.storageQuota;
+    const response = await drive.about.get({
+      fields: "storageQuota",
+    });
+    const quota = response.data.storageQuota;
 
-  return {
-    used: Number(quota?.usage || 0),
-    total: Number(quota?.limit || 0),
-    usageInDrive: Number(quota?.usageInDrive || 0),
-    usageInDriveTrash: Number(quota?.usageInDriveTrash || 0),
-  };
+    return {
+      used: Number(quota?.usage || 0),
+      total: Number(quota?.limit || 0),
+      usageInDrive: Number(quota?.usageInDrive || 0),
+      usageInDriveTrash: Number(quota?.usageInDriveTrash || 0),
+    };
+  } catch (error: any) {
+    // Auth errors are handled by refreshAccessToken and will be re-thrown
+    // Just log and re-throw for caller to handle
+    console.error(`Error fetching quota for ${driveAccount.email}:`, error.message);
+    throw error;
+  }
 };
 const fetchDriveAbout = async (driveAccount: any) => {
   // If there are no tokens available, return stored DB snapshot so UI can show last-known data
@@ -799,8 +798,16 @@ export const deleteFilesService = async (
               `❌ Drive API Error [Status: ${status}]: ${message}`
             );
 
+            // Check if this is a DriveTokenExpiredError from our centralized error handling
+            if (driveErr instanceof DriveTokenExpiredError) {
+              if (!revokedAccounts.find((a) => a.id === driveErr.accountId)) {
+                revokedAccounts.push({ id: driveErr.accountId, email: driveErr.accountEmail });
+              }
+              failedFiles.push({ fileId: item.fileId, reason: "auth_revoked", details: message });
+              console.error(`🔴 Auth revoked for account ${driveErr.accountEmail}.`);
+            } 
             // Handle specific error cases without aborting the entire transaction
-            if (status === 404) {
+            else if (status === 404) {
               // File already gone — treat as success from user's perspective
               console.warn(`ℹ️ File ${item.fileId} not found on Drive (404). Proceeding to DB cleanup.`);
             } else if (
@@ -827,7 +834,7 @@ export const deleteFilesService = async (
                 console.error('Failed to mark account revoked in DB', e);
               }
             } else if (status === 403 || /insufficient/i.test(message)) {
-              // Insufficient permission / scopes. Mark account for reauth so they can re-grant necessary scopes.
+              // ...existing code...
               const acctId = (account && (account as any)._id) || driveAccountId;
               if (!revokedAccounts.find((a) => a.id === String(acctId))) {
                 revokedAccounts.push({ id: String(acctId), email: (account && (account as any).email) || "" });
@@ -1036,8 +1043,13 @@ export const refreshAccessToken = async (driveAccount: any) => {
     }
     
     return auth;
-  } catch (tokenError) {
+  } catch (tokenError: any) {
     console.error('Token refresh failed:', tokenError);
-    throw new Error("Drive account authentication expired. Please reconnect your Google Drive account.");
+    
+    // Use centralized error handling - this will throw the appropriate error
+    await handleTokenError(tokenError, driveAccount._id, driveAccount.email);
+    
+    // This line should never be reached as handleTokenError will throw
+    throw new Error("Authentication failed");
   }
 };

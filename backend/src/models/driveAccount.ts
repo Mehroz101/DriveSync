@@ -29,7 +29,7 @@ const driveAccountSchema = new mongoose.Schema(
     },
     connectionStatus: {
       type: String,
-      enum: ["active", "inactive", "error"],
+      enum: ["active", "inactive", "error", "revoked"],
       default: "active",
     },
     scopes: [{ type: String }], // OAuth scopes granted

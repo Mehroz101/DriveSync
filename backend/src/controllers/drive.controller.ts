@@ -14,6 +14,7 @@ import { getUserById } from "../services/auth.service.js";
 import driveAccount from "../models/driveAccount.js";
 import { generateOAuthState } from "../utils/oauthState.js";
 import axios from "axios";
+import { DriveTokenExpiredError } from "../utils/driveAuthError.js";
 const QUOTA_REFRESH_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 export const getDriveFiles = async (
@@ -51,6 +52,12 @@ export const getDriveFiles = async (
           `Error fetching files from drive account ${driveAccount._id}:`,
           error
         );
+        
+        // Check if this was a Drive auth error
+        if (error instanceof DriveTokenExpiredError) {
+          console.error(`🔴 Auth revoked for drive account ${error.accountEmail}`);
+        }
+        
         continue; // Continue with other accounts
       }
     }

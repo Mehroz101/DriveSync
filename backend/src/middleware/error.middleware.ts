@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { ApiError } from "../utils/apiError.js";
+import { DriveAuthError } from "../utils/driveAuthError.js";
 
 export const errorHandler = (
   err: any,
@@ -11,6 +12,11 @@ export const errorHandler = (
     return res.status(err.statusCode).json({
       message: err.message,
     });
+  }
+
+  // Handle Drive authentication errors
+  if (err instanceof DriveAuthError) {
+    return res.status(err.statusCode).json(err.toJSON());
   }
 
   console.error("Unhandled Error:", err);

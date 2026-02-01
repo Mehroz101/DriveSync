@@ -17,6 +17,8 @@ import { google } from "googleapis";
 import { createGoogleAuthClient } from "../utils/googleAuth.js";
 import DriveAccount from "../models/driveAccount.js";
 import { Readable } from 'stream';
+import { checkAccountStatus } from "../utils/driveAuthUtils.js";
+import { DriveTokenExpiredError } from "../utils/driveAuthError.js";
 
 const QUOTA_REFRESH_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -117,13 +119,13 @@ export const getAllDriveFilesSync = async (
       } catch (error: any) {
         syncResults.failedCount++;
         
-        // Check if this was an auth error (account already marked as revoked by service)
-        if (error.isAuthError) {
+        // Check if this was a Drive auth error using our new error classes
+        if (error instanceof DriveTokenExpiredError) {
           syncResults.revokedAccounts.push({
-            id: error.accountId || account._id.toString(),
-            email: error.accountEmail || account.email,
+            id: error.accountId,
+            email: error.accountEmail,
           });
-          console.error(`🔴 Auth revoked for account ${account.email}`);
+          console.error(`🔴 Auth revoked for account ${error.accountEmail}`);
         } else {
           syncResults.errors.push({
             accountId: account._id.toString(),
@@ -164,19 +166,22 @@ export const getDriveThumbnail = async (
   try {
     const fileId = req.query.fileId as string;
     const accountId = req.query.accountId as string;
+    
     if (!fileId || !accountId) {
       return res
         .status(400)
         .json({ error: "fileId and accountId are required" });
     }
 
-    // Load drive account from DB
-    const account = await DriveAccount.findById(accountId);
-    if (!account)
-      return res.status(404).json({ error: "Drive account not found" });
+    // Check account status and get account (throws error if revoked)
+    const account = await checkAccountStatus(accountId);
 
     // Create an authenticated Google client with fresh tokens
     const auth = await refreshAccessToken(account);
+    if (!auth) {
+      throw new Error("Failed to authenticate with Google Drive");
+    }
+    
     const drive = google.drive({ version: "v3", auth });
 
     // Get file metadata to retrieve thumbnailLink
@@ -211,7 +216,7 @@ export const getDriveThumbnail = async (
     axiosResp.data.pipe(res);
   } catch (error) {
     console.error("getDriveThumbnail error:", error);
-    res.status(500).json({ error: "Failed to fetch thumbnail" });
+    next(error); // Let the error middleware handle it
   }
 };
 
@@ -289,15 +294,16 @@ export const uploadFile = async (
       return res.status(400).json({ error: "Drive ID and file are required" });
     }
 
-    // Get drive account
-    const driveAccount = await DriveAccount.findOne({ _id: driveId, userId: req.userId });
-    if (!driveAccount) {
-      return res.status(404).json({ error: "Drive account not found" });
+    // Check account status and get account (throws error if revoked)
+    const driveAccount = await checkAccountStatus(driveId);
+
+    // Verify the account belongs to the user
+    if (driveAccount.userId.toString() !== req.userId) {
+      return res.status(403).json({ error: "Access denied" });
     }
 
     // Create Google Drive client with fresh tokens
     const auth = await refreshAccessToken(driveAccount);
-
     const drive = google.drive({ version: 'v3', auth });
 
     // Upload file to Google Drive
@@ -339,6 +345,6 @@ export const uploadFile = async (
 
   } catch (error) {
     console.error('Upload error:', error);
-    next(error);
+    next(error); // Let the error middleware handle it
   }
 };
