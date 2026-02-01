@@ -172,7 +172,7 @@ export const fetchUserFilesService = async ({
 
 export const fetchDriveAccountFiles = async (driveAccount: any) => {
   try {
-    const auth = createGoogleAuthClient(driveAccount);
+    const auth = await refreshAccessToken(driveAccount);
     const drive = google.drive({ version: "v3", auth });
 
     console.log("🚀 Sync started →", driveAccount.email);
@@ -277,7 +277,7 @@ export const fetchDriveAccountFiles = async (driveAccount: any) => {
 //used
 export const fetchUserProfile = async (driveAccount: any) => {
   console.log("=============Fetching user profile=============");
-  const auth = createGoogleAuthClient(driveAccount);
+  const auth = await refreshAccessToken(driveAccount);
   const oauth2 = google.oauth2({ version: "v2", auth });
   const profileResponse = await oauth2.userinfo.get();
   const profile = profileResponse.data;
@@ -312,7 +312,7 @@ export const searchDriveFiles = async (userId: string, query: string) => {
 
 //used
 export const fetchDriveQuotaFromGoogle = async (driveAccount: any) => {
-  const oauth2Client = await createGoogleAuthClient(driveAccount);
+  const oauth2Client = await refreshAccessToken(driveAccount);
 
   const drive = google.drive({
     version: "v3",
@@ -349,7 +349,7 @@ const fetchDriveAbout = async (driveAccount: any) => {
   }
 
   try {
-    const auth = createGoogleAuthClient(driveAccount);
+    const auth = await refreshAccessToken(driveAccount);
     const drive = google.drive({ version: "v3", auth });
 
     const { data } = await drive.about.get({ fields: "user, storageQuota" });
@@ -434,7 +434,7 @@ const fetchDriveAbout = async (driveAccount: any) => {
 
 //used
 const fetchAllFiles = async (driveAccount: any) => {
-  const auth = createGoogleAuthClient(driveAccount);
+  const auth = await refreshAccessToken(driveAccount);
   const drive = google.drive({ version: "v3", auth });
 
   let files: any[] = [];
@@ -728,7 +728,7 @@ export const deleteFilesService = async (
         } else {
           // 3. Drive Operation (Remove Access/Trash)
           try {
-            const auth = createGoogleAuthClient(account);
+            const auth = await refreshAccessToken(account);
             const drive = google.drive({ version: "v3", auth });
 
             // !!! CRITICAL FIX: Ensure 'permissions' is in the fields list !!!
@@ -947,7 +947,7 @@ export const permanentlyDeleteTrashedFilesService = async (
 
         // 3. Permanently delete from Google Drive
         try {
-          const auth = createGoogleAuthClient(account);
+          const auth = await refreshAccessToken(account);
           const drive = google.drive({ version: "v3", auth });
 
           console.log("➡ Action: Permanently deleting trashed file");
@@ -1019,3 +1019,25 @@ export interface DashboardStats {
     source: string;
   };
 }
+
+// Refresh access token for a drive account and return authenticated client
+export const refreshAccessToken = async (driveAccount: any) => {
+  const auth = createGoogleAuthClient(driveAccount);
+  
+  try {
+    const { credentials } = await auth.refreshAccessToken();
+    auth.setCredentials(credentials);
+    
+    // Update the stored access token if it changed
+    if (credentials.access_token && credentials.access_token !== driveAccount.accessToken) {
+      await DriveAccount.findByIdAndUpdate(driveAccount._id, {
+        accessToken: credentials.access_token,
+      });
+    }
+    
+    return auth;
+  } catch (tokenError) {
+    console.error('Token refresh failed:', tokenError);
+    throw new Error("Drive account authentication expired. Please reconnect your Google Drive account.");
+  }
+};

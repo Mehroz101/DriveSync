@@ -75,6 +75,7 @@ import {
 
 import FilterBar from "@/components/files/FilterBar";
 import FileCard from "@/components/files/FileCard";
+import { UploadDialog } from "@/components/files/UploadDialog";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import type { DeleteFilesResponse } from "@/api/files/files.api";
@@ -100,6 +101,7 @@ export default function Trashed() {
   const [selectedDrive, setSelectedDrive] = useState("all");
   // multi-select types: empty array = all types
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
 
   // New filters
   const [selectedTags, setSelectedTags] = useState<string[]>([]); // shared, starred, trashed
@@ -341,12 +343,12 @@ export default function Trashed() {
       {/* HEADER */}
       {isFetching ? (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-gray-300/70">
-           <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-          <p className="mt-4 text-muted-foreground">Loading...</p>
-        </div>
-      </div>
+          <div className="min-h-screen flex items-center justify-center bg-background">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+              <p className="mt-4 text-muted-foreground">Loading...</p>
+            </div>
+          </div>
         </div>
       ) : null}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -357,10 +359,15 @@ export default function Trashed() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button className="gap-2">
+          <Button
+            onClick={() => setOpen(true)}
+            className="gap-2 h-10 px-4 bg-purple-600 hover:bg-purple-700 text-white shadow-md"
+          >
             <Upload className="h-4 w-4" />
-            Upload Files
+            Upload Video
           </Button>
+          {/* MODAL */}
+          <UploadDialog open={open} onClose={() => setOpen(false)} />{" "}
         </div>
       </div>
 

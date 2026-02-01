@@ -10,11 +10,13 @@ import {
   fetchDriveAccountFiles,
   fetchUserFilesService,
   permanentlyDeleteTrashedFilesService,
+  refreshAccessToken,
 } from "../services/drive.service.js";
 import axios from "axios";
 import { google } from "googleapis";
 import { createGoogleAuthClient } from "../utils/googleAuth.js";
 import DriveAccount from "../models/driveAccount.js";
+import { Readable } from 'stream';
 
 const QUOTA_REFRESH_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -173,8 +175,8 @@ export const getDriveThumbnail = async (
     if (!account)
       return res.status(404).json({ error: "Drive account not found" });
 
-    // Create an authenticated Google client
-    const auth = createGoogleAuthClient(account);
+    // Create an authenticated Google client with fresh tokens
+    const auth = await refreshAccessToken(account);
     const drive = google.drive({ version: "v3", auth });
 
     // Get file metadata to retrieve thumbnailLink
@@ -189,12 +191,8 @@ export const getDriveThumbnail = async (
       return res.status(404).json({ error: "Thumbnail not available" });
     }
 
-    // Ensure we have an access token (this will refresh if needed)
-    const atRes: any = await (auth as any).getAccessToken();
-    const token =
-      typeof atRes === "string"
-        ? atRes
-        : atRes?.token || auth.credentials?.access_token;
+    // Get the current access token for the thumbnail request
+    const token = auth.credentials?.access_token;
 
     // Fetch the thumbnail via server-side request with Bearer token
     const axiosResp = await axios.get(thumbnailLink, {
@@ -270,6 +268,77 @@ export const permanentlyDeleteTrashedFiles = async (
     res.json(response);
 
   } catch (error) {
+    next(error);
+  }
+};
+
+export const uploadFile = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { driveId } = req.body;
+    const file = req.file;
+
+    if (!driveId || !file) {
+      return res.status(400).json({ error: "Drive ID and file are required" });
+    }
+
+    // Get drive account
+    const driveAccount = await DriveAccount.findOne({ _id: driveId, userId: req.userId });
+    if (!driveAccount) {
+      return res.status(404).json({ error: "Drive account not found" });
+    }
+
+    // Create Google Drive client with fresh tokens
+    const auth = await refreshAccessToken(driveAccount);
+
+    const drive = google.drive({ version: 'v3', auth });
+
+    // Upload file to Google Drive
+    const response = await drive.files.create({
+      requestBody: {
+        name: file.originalname,
+        parents: ['root'],
+      },
+      media: {
+        mimeType: file.mimetype,
+        body: Readable.from(file.buffer),
+      },
+    });
+
+    // Save file metadata to database
+    const newFile = new File({
+      userId: req.userId,
+      driveAccountId: driveId,
+      googleFileId: response.data.id,
+      name: file.originalname,
+      mimeType: file.mimetype,
+      size: file.size,
+      webViewLink: response.data.webViewLink,
+      iconLink: response.data.iconLink,
+      thumbnailLink: response.data.thumbnailLink,
+      modifiedTime: response.data.modifiedTime,
+      createdTime: response.data.createdTime,
+      shared: response.data.shared || false,
+      starred: response.data.starred || false,
+      trashed: response.data.trashed || false,
+    });
+
+    await newFile.save();
+
+    res.json({
+      success: true,
+      file: newFile,
+    });
+
+  } catch (error) {
+    console.error('Upload error:', error);
     next(error);
   }
 };

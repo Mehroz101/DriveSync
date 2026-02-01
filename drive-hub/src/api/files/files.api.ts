@@ -103,3 +103,31 @@ export const permanentlyDeleteTrashedFilesAPI = async (
     return { success: false, error: message };
   }
 };
+
+export const uploadFileAPI = async (
+  file: File,
+  driveId: string,
+  onProgress?: (progress: number) => void
+): Promise<DriveFile> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('driveId', driveId);
+
+  const response = await apiClient.post<{ success: boolean; file: DriveFile }>("/file/upload", formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    onUploadProgress: (progressEvent) => {
+      if (onProgress && progressEvent.total) {
+        const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        onProgress(progress);
+      }
+    },
+  });
+
+  if (!response.data.success) {
+    throw new Error('Upload failed');
+  }
+
+  return response.data.file;
+};

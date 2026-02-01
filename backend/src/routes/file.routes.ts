@@ -1,8 +1,12 @@
 import express from "express";
 import { authenticateToken } from "../middleware/auth.middleware.js";
-import { deleteFiles, getAllDriveFiles, getAllDriveFilesSync, getDriveThumbnail, permanentlyDeleteTrashedFiles } from "../controllers/file.controller.js";
+import { deleteFiles, getAllDriveFiles, getAllDriveFilesSync, getDriveThumbnail, permanentlyDeleteTrashedFiles, uploadFile } from "../controllers/file.controller.js";
+import multer from "multer";
 
 const router = express.Router();
+
+// Configure multer for memory storage
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Routes for individual drive files - all protected with authentication
 router.post("/get-all-files-sync", authenticateToken, getAllDriveFilesSync); //used
@@ -16,5 +20,8 @@ router.post("/permanently-delete-trashed", authenticateToken, permanentlyDeleteT
 
 // Thumbnail proxy
 router.get("/thumbnail", getDriveThumbnail);
+
+// Upload file
+router.post("/upload", authenticateToken, upload.single('file'), uploadFile);
 
 export default router;

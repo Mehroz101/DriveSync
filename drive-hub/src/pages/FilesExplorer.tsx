@@ -77,6 +77,7 @@ import FileCard from "@/components/files/FileCard";
 import { useToast } from "@/hooks/use-toast";
 import type { DeleteFilesResponse } from "@/api/files/files.api";
 import { useReconnectDrive } from "@/mutations/drive/useReconnectDrive";
+import { UploadDialog } from "@/components/files/UploadDialog";
 
 /* -----------------------------------
  CONFIG
@@ -98,6 +99,7 @@ export default function FilesExplorer() {
   const [selectedDrive, setSelectedDrive] = useState("all");
   // multi-select types: empty array = all types
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
 
   // New filters
   const [selectedTags, setSelectedTags] = useState<string[]>([]); // shared, starred, trashed
@@ -348,11 +350,19 @@ export default function FilesExplorer() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button className="gap-2">
-            <Upload className="h-4 w-4" />
-            Upload Files
-          </Button>
-          <Button
+  <Button
+        onClick={() => setOpen(true)}
+        className="gap-2 h-10 px-4 bg-purple-600 hover:bg-purple-700 text-white shadow-md"
+      >
+        <Upload className="h-4 w-4" />
+        Upload Video
+      </Button>
+
+      {/* MODAL */}
+      <UploadDialog
+        open={open}
+        onClose={() => setOpen(false)}
+      />          <Button
             className="gap-2"
             disabled={isSyncing}
             onClick={() => refetchDriveFiles()}
