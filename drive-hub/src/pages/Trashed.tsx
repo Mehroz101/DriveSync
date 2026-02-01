@@ -16,6 +16,7 @@ import {
   Filter,
   X,
 } from "lucide-react";
+import { Toaster as Sonner } from "@/components/ui/sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -186,8 +187,8 @@ export default function Trashed() {
 
   /* ---------- API Hooks ---------- */
 
-  const { data, isLoading } = useTrashedFiles(queryParams);
-  const { data: drives } = useDriveAccountStats();
+  const { data, isLoading, isFetching } = useTrashedFiles(queryParams);
+  const { data: drives = [] } = useDriveAccountStats();
   const deleteFilesMutation = usePermanentlyDeleteTrashedFiles();
 
   const { toast } = useToast();
@@ -336,9 +337,18 @@ export default function Trashed() {
 ------------------------------------ */
 
   return (
-    <div className={`space-y-6 animate-fade-in `}>
+    <div className={`space-y-6 animate-fade-in relative `}>
       {/* HEADER */}
-
+      {isFetching ? (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-gray-300/70">
+           <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+        </div>
+      ) : null}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Trashed Files</h1>
@@ -376,7 +386,6 @@ export default function Trashed() {
       />
 
       {/* BULK BAR */}
-
       {selectedFiles.length > 0 && (
         <div className="flex gap-3 items-center bg-muted/40 border rounded-lg px-4 py-3">
           <span className="text-sm font-medium">

@@ -16,7 +16,7 @@ import type { DashboardStats, DriveAccount } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface DrivesSummaryProps {
-  drives?: DashboardStats[];
+  drives?: DriveAccount[];
 }
 
 export function DrivesSummary({ drives }: DrivesSummaryProps) {

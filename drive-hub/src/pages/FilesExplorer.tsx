@@ -186,7 +186,7 @@ export default function FilesExplorer() {
   /* ---------- API Hooks ---------- */
 
   const { data, isLoading } = useAllDrivesFiles(queryParams);
-  const { data: drives } = useDriveAccountStats();
+  const { data: drives = [] } = useDriveAccountStats();
   const deleteFilesMutation = useDeleteFiles();
 
   const { refetch: refetchDriveFiles, isLoading: isSyncing } =

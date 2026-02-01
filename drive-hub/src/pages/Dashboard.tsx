@@ -19,7 +19,7 @@ interface AggregatedStats {
   totalStorage: number;
 }
 
-function aggregateDriveStats(drives: DashboardStats[]): AggregatedStats {
+function aggregateDriveStats(drives: DriveAccount[]): AggregatedStats {
   return drives?.reduce(
     (acc, drive) => ({
       totalFiles: acc.totalFiles + drive?.stats?.totalFiles,
@@ -58,7 +58,7 @@ export default function Dashboard() {
       </div>
 
       {/* Profile Card - Updated to show first drive as primary */}
-      <ProfileCard drive={drives?.[0] as unknown as DriveAccount} />
+      <ProfileCard drive={drives?.[0]} />
 
       {/* Quick Actions */}
       <QuickActions />
