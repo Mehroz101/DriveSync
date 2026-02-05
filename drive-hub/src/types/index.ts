@@ -134,7 +134,7 @@ export interface StorageAnalytics {
 }
 
 export interface FileTypeDistribution {
-  type: FileType;
+  mimeType: FileType;
   count: number;
   size: number;
   percentage: number;

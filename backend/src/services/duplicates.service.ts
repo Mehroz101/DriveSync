@@ -1,20 +1,12 @@
-import mongoose from "mongoose";
+import mongoose, { PipelineStage } from "mongoose";
 import File from "../models/file.js";
-
-export interface DuplicateGroup {
-  id: string;
-  name: string;
-  size: number;
-  hash?: string;
-  files: any[];
-  totalWastedSpace: number;
-}
+import { DuplicateGroup } from "../types/index.js";
 
 export const getDuplicatesService = async (userId: string): Promise<DuplicateGroup[]> => {
 
 
   // Use aggregation for better performance
-  const duplicates = await File.aggregate([
+  const pipeline: PipelineStage[] = [
     {
       $match: {
         userId: new mongoose.Types.ObjectId(userId),
@@ -78,7 +70,8 @@ export const getDuplicatesService = async (userId: string): Promise<DuplicateGro
     {
       $limit: 100, // Limit to top 100 duplicates for performance
     },
-  ]);
+  ];
+  const duplicates = await File.aggregate(pipeline);
 
   return duplicates;
 };

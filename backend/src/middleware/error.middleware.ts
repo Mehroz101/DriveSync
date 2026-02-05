@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { ApiError } from "../utils/apiError.js";
 import { DriveAuthError } from "../utils/driveAuthError.js";
+import { logger } from "../utils/logger.js";
 
 export const errorHandler = (
   err: any,
@@ -19,9 +20,19 @@ export const errorHandler = (
     return res.status(err.statusCode).json(err.toJSON());
   }
 
-  console.error("Unhandled Error:", err);
+  // Log unhandled errors
+  logger.error("Unhandled Error", {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    userId: (req as any).userId,
+    ip: req.ip,
+  });
 
   res.status(500).json({
+    success: false,
     message: "Internal server error",
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 };

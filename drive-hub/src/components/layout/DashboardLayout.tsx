@@ -5,20 +5,39 @@ import { AppSidebar } from './AppSidebar';
 import { TopBar } from './TopBar';
 import { MobileBottomNav } from './MobileBottomNav';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState } from '@/store/store';
+import { setSelectedDrives, setSidebarCollapsed, setMobileSidebarOpen } from '@/store/slices/uiSlice';
 
 export function DashboardLayout() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [selectedDrives, setSelectedDrives] = useState<string[]>([]);
+  const dispatch = useDispatch();
   const isMobile = useIsMobile();
+  
+  // Get state from Redux
+  const { sidebarCollapsed, mobileSidebarOpen, selectedDrives } = useSelector(
+    (state: RootState) => state.ui
+  );
+  
+  // Local state setters that dispatch to Redux
+  const handleSetSidebarCollapsed = (collapsed: boolean) => {
+    dispatch(setSidebarCollapsed(collapsed));
+  };
+  
+  const handleSetMobileSidebarOpen = (open: boolean) => {
+    dispatch(setMobileSidebarOpen(open));
+  };
+  
+  const handleSetSelectedDrives = (drives: string[]) => {
+    dispatch(setSelectedDrives(drives));
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <AppSidebar 
         collapsed={sidebarCollapsed} 
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onToggle={() => handleSetSidebarCollapsed(!sidebarCollapsed)}
         mobileOpen={mobileSidebarOpen}
-        onMobileClose={() => setMobileSidebarOpen(false)}
+        onMobileClose={() => handleSetMobileSidebarOpen(false)}
       />
       
       <div
@@ -29,8 +48,8 @@ export function DashboardLayout() {
       >
         <TopBar 
           selectedDrives={selectedDrives}
-          onDriveSelectionChange={setSelectedDrives}
-          onMenuClick={() => setMobileSidebarOpen(true)}
+          onDriveSelectionChange={handleSetSelectedDrives}
+          onMenuClick={() => handleSetMobileSidebarOpen(true)}
         />
         
         <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6">

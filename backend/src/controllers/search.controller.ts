@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { searchDriveFiles } from "../services/drive.service.js";
-import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
+import { AuthenticatedRequest } from "../types/index.js";
 
 export const searchFiles = async (
   req: AuthenticatedRequest,

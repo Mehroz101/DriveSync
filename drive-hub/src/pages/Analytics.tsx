@@ -111,7 +111,10 @@ export default function Analytics() {
   const { data: files = [], isLoading: filesLoading } = useAnalyticsFiles();
 
   const loading = storageLoading || fileTypesLoading || driveStatsLoading || statsLoading || filesLoading;
-
+console.log("fileTypes:", fileTypes);
+console.log("driveStats:", driveStats);
+console.log("stats:", stats);
+console.log("files:", files);
   // Transform data for charts
   const storageChartData = storageData.map((item) => ({
     date: new Date(item.date).toLocaleDateString("en-US", {
@@ -122,20 +125,31 @@ export default function Analytics() {
     total: item.totalStorage / (1024 * 1024 * 1024),
   }));
   const pieChartData = fileTypes.map((item) => ({
-    name: item.type.charAt(0).toUpperCase() + item.type.slice(1),
+    name: item.mimeType.charAt(0).toUpperCase() + item.mimeType.slice(1),
     value: item.count,
     size: item.size,
   }));
 
-  const driveBarData = driveStats.map((item) => ({
-    name:
-      item.driveName.length > 10
-        ? item.driveName.slice(0, 10) + "..."
-        : item.driveName,
-    used: item.storageUsed / (1024 * 1024 * 1024),
-    total: item.storageTotal / (1024 * 1024 * 1024),
-    files: item.fileCount,
-  }));
+  const safeDriveStats = Array.isArray(driveStats) ? driveStats : [];
+
+  const driveBarData = safeDriveStats.map((item: any) => {
+    // Resolve name from multiple possible shapes
+    const rawName = item.driveName ?? item.owner?.displayName ?? item.owner?.name ?? item.driveId ?? 'Drive';
+    const name = typeof rawName === 'string' && rawName.length > 10 ? `${rawName.slice(0,10)}...` : String(rawName);
+
+    // Resolve storage fields (bytes) from multiple possible shapes
+    const usedBytes = item.storage?.used ?? item.storageUsed ?? item.used ?? 0;
+    const totalBytes = item.storage?.total ?? item.storageTotal ?? item.total ?? 0;
+    const files = item.stats?.totalFiles ?? item.fileCount ?? 0;
+
+    return {
+      name,
+      used: usedBytes / (1024 * 1024 * 1024),
+      total: totalBytes / (1024 * 1024 * 1024),
+      files,
+    } as driveBarData;
+  });
+
   // Largest files
   const largestFiles = [...files].sort((a, b) => b.size - a.size).slice(0, 5);
 

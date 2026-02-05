@@ -1,24 +1,8 @@
 import bcrypt from 'bcryptjs';
 import User from '../models/user.js';
-import { generateToken, JwtPayload } from '../utils/jwt.js';
-
-export interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-export interface RegisterData {
-  email: string;
-  password: string;
-  name: string;
-}
-
-export interface AuthResult {
-  success: boolean;
-  token?: string;
-  user?: any;
-  error?: string;
-}
+import { generateToken } from '../utils/jwt.js';
+import { JwtPayload } from '../types/index.js';
+import { LoginCredentials, RegisterData, AuthResult } from '../types/index.js';
 
 export const registerUser = async (userData: RegisterData): Promise<AuthResult> => {
   try {

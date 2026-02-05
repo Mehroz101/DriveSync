@@ -1,11 +1,10 @@
 import jwt from 'jsonwebtoken';
+import { JwtPayload } from '../types/index.js';
+
+// Re-export JwtPayload so other modules can import it from this module
+export { JwtPayload };
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_development';
-
-export interface JwtPayload {
-  userId: string;
-  email: string;
-}
 
 export const generateToken = (payload: JwtPayload): string => {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });

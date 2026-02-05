@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
+import { AuthenticatedRequest } from "../types/index.js";
 import { getDuplicatesService } from "../services/duplicates.service.js";
 
 export const getDuplicates = async (

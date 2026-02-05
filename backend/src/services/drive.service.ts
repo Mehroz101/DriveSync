@@ -3,9 +3,10 @@ import { createGoogleAuthClient } from "../utils/googleAuth.js";
 import User from "../models/user.js";
 import DriveAccount from "../models/driveAccount.js";
 import File from "../models/file.js";
-import mongoose from "mongoose";
+import mongoose, { PipelineStage } from "mongoose";
 import { handleTokenError, isAuthError } from "../utils/driveAuthUtils.js";
 import { DriveTokenExpiredError } from "../utils/driveAuthError.js";
+import { DashboardStats } from "../types/index.js";
 
 interface FileItem {
   fileId: string;
@@ -44,9 +45,9 @@ export const fetchUserFilesService = async ({
 }) => {
   const skip = (page - 1) * limit;
 
-  const matchStage: any = {
+  const matchStage: { [key: string]: any } = {
     userId: new mongoose.Types.ObjectId(userId),
-  };
+  }; // Using indexed type to allow dynamic MongoDB query properties
 
   if (driveId) {
     matchStage.driveAccountId = new mongoose.Types.ObjectId(driveId);
@@ -98,7 +99,7 @@ export const fetchUserFilesService = async ({
   if (modifiedAfter) {
     matchStage.modifiedTime = { $gte: new Date(modifiedAfter) };
   }
-  const pipeline: any[] = [
+  const pipeline: PipelineStage[] = [
     { $match: matchStage },
 
     // Join drive account for status filtering
@@ -172,14 +173,46 @@ export const fetchUserFilesService = async ({
   };
 };
 
-export const fetchDriveAccountFiles = async (driveAccount: any) => {
+import { Types } from 'mongoose';
+
+interface DriveAccountIntf {
+  _id: Types.ObjectId | string;
+  email: string;
+  userId: Types.ObjectId | string;
+  refreshToken?: string;
+  accessToken?: string;
+}
+
+export const fetchDriveAccountFiles = async (driveAccount: DriveAccountIntf) => {
   try {
     const auth = await refreshAccessToken(driveAccount);
     const drive = google.drive({ version: "v3", auth });
 
     console.log("🚀 Sync started →", driveAccount.email);
 
-    let files: any[] = [];
+    interface GoogleFile {
+      id?: string | null;
+      name?: string | null;
+      mimeType?: string | null;
+      webViewLink?: string | null;
+      webContentLink?: string | null;
+      iconLink?: string | null;
+      thumbnailLink?: string | null;
+      createdTime?: string | null;
+      modifiedTime?: string | null;
+      size?: string | number | null;
+      parents?: string[] | null;
+      starred?: boolean | null;
+      trashed?: boolean | null;
+      shared?: boolean | null;
+      description?: string | null;
+      owners?: {
+        displayName?: string | null;
+        emailAddress?: string | null;
+      }[] | null;
+    }
+    
+    let files: GoogleFile[] = [];
     let nextPageToken: string | undefined = undefined;
 
     do {
@@ -223,7 +256,7 @@ export const fetchDriveAccountFiles = async (driveAccount: any) => {
       size: file.size ? Number(file.size) : 0,
 
       owners:
-        file.owners?.map((o: any) => ({
+        file.owners?.map((o) => ({
           displayName: o.displayName || "",
           emailAddress: o.emailAddress || "",
         })) || [],
@@ -236,12 +269,12 @@ export const fetchDriveAccountFiles = async (driveAccount: any) => {
 
       description: file.description || "",
     }));
-  } catch (error: any) {
-    console.error(`❌ Error fetching files for account ${driveAccount.email}:`, error.message);
+  } catch (error) {
+    console.error(`❌ Error fetching files for account ${driveAccount.email}:`, (error as Error).message);
     
     // Use centralized auth error handling
-    if (isAuthError(error)) {
-      console.error(`❌ Auth error for account ${driveAccount.email}: ${error.message}`);
+    if (isAuthError(error as Error)) {
+      console.error(`❌ Auth error for account ${driveAccount.email}: ${(error as Error).message}`);
       
       // Mark account as revoked
       await DriveAccount.findByIdAndUpdate(driveAccount._id, {
@@ -250,7 +283,7 @@ export const fetchDriveAccountFiles = async (driveAccount: any) => {
       });
       
       // Throw specific auth error
-      throw new DriveTokenExpiredError(driveAccount._id, driveAccount.email);
+      throw new DriveTokenExpiredError(driveAccount._id.toString(), driveAccount.email);
     }
 
     // Re-throw other errors
@@ -279,7 +312,7 @@ export const fetchUserProfile = async (driveAccount: any) => {
     );
 
     return profile;
-  } catch (error: any) {
+  } catch (error) {
     // Centralized auth error handling will be done by refreshAccessToken
     // Just re-throw the error
     throw error;
@@ -323,10 +356,10 @@ export const fetchDriveQuotaFromGoogle = async (driveAccount: any) => {
       usageInDrive: Number(quota?.usageInDrive || 0),
       usageInDriveTrash: Number(quota?.usageInDriveTrash || 0),
     };
-  } catch (error: any) {
+  } catch (error) {
     // Auth errors are handled by refreshAccessToken and will be re-thrown
     // Just log and re-throw for caller to handle
-    console.error(`Error fetching quota for ${driveAccount.email}:`, error.message);
+    console.error(`Error fetching quota for ${driveAccount.email}:`, (error as Error).message);
     throw error;
   }
 };
@@ -370,16 +403,17 @@ const fetchDriveAbout = async (driveAccount: any) => {
             : null,
       },
     };
-  } catch (error: any) {
-    console.error("fetchDriveAbout error:", error?.response?.data || error);
+  } catch (error) {
+    const errorObj = error as any;
+    console.error("fetchDriveAbout error:", errorObj?.response?.data || error);
 
-    const errData = error?.response?.data;
+    const errData = errorObj?.response?.data;
     const isInvalidGrant =
       errData?.error === "invalid_grant" ||
       (errData?.error_description &&
         String(errData.error_description).toLowerCase().includes("revoked")) ||
-      String(error?.message).toLowerCase().includes("invalid_grant") ||
-      String(error?.message).toLowerCase().includes("no access");
+      String(errorObj?.message).toLowerCase().includes("invalid_grant") ||
+      String(errorObj?.message).toLowerCase().includes("no access");
 
     if (isInvalidGrant) {
       try {
@@ -988,12 +1022,12 @@ export const permanentlyDeleteTrashedFilesService = async (
       revokedAccounts,
     };
 
-  } catch (error: any) {
+  } catch (error) {
     await session.endSession();
     console.error("💥 Transaction failed:", error);
     return {
       success: false,
-      error: error.message,
+      error: (error as Error).message,
       deletedCount,
       failedFiles,
       revokedAccounts,
@@ -1001,31 +1035,7 @@ export const permanentlyDeleteTrashedFilesService = async (
   }
 };
 
-export interface DashboardStats {
-  owner: {
-    displayName: string;
-    emailAddress: string;
-    photoLink: string;
-    me: boolean;
-  };
-  storage: {
-    total: number;
-    used: number;
-    usedInDrive: number;
-    usedInTrash: number;
-    remaining: number;
-  };
-  stats: {
-    totalFiles: number;
-    totalFolders: number;
-    trashedFiles: number;
-    duplicateFiles: number;
-  };
-  meta: {
-    fetchedAt: Date;
-    source: string;
-  };
-}
+
 
 // Refresh access token for a drive account and return authenticated client
 export const refreshAccessToken = async (driveAccount: any) => {

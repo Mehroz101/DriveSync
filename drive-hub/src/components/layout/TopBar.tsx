@@ -7,6 +7,10 @@ import {
   Menu,
   RefreshCw,
 } from "lucide-react";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState, AppDispatch } from "@/store/store";
+import { toggleDriveSelection, setSearchQuery, setIsRefreshing } from "@/store/slices/uiSlice";
+import { refreshDriveStats } from "@/store/slices/drivesSlice";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,14 +42,20 @@ interface TopBarProps {
 }
 
 export function TopBar({
-  selectedDrives,
+  selectedDrives: externalSelectedDrives,
   onDriveSelectionChange,
   onMenuClick,
 }: TopBarProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [dashboardStats, setDashboardStats] = useState<DriveAccount[]>([]);
+  const dispatch = useDispatch<AppDispatch>();
   const isMobile = useIsMobile();
   const { user } = useAuth();
+  
+  // Get state from Redux
+  const { selectedDrives, searchQuery } = useSelector((state: RootState) => state.ui);
+  const drivesState = useSelector((state: RootState) => state.drives);
+  const dashboardStats = drivesState.drives;
+  const drivesLoading = drivesState.loading;
+  
   const { data: drives, isFetching } = useDriveAccountStats();
   const {
     data: syncAlltDrives,
@@ -53,27 +63,30 @@ export function TopBar({
     refetch,
   } = useDriveAccountsRefetch();
   const handleDriveToggle = (driveId: string) => {
-    if (driveId === "all") {
-      onDriveSelectionChange([]);
-      return;
-    }
-
-    if (selectedDrives.includes(driveId)) {
-      onDriveSelectionChange(selectedDrives.filter((id) => id !== driveId));
-    } else {
-      onDriveSelectionChange([...selectedDrives, driveId]);
+    dispatch(toggleDriveSelection(driveId));
+    // Also notify external handler if provided
+    if (onDriveSelectionChange) {
+      const newSelection = selectedDrives.includes(driveId)
+        ? selectedDrives.filter(id => id !== driveId)
+        : [...selectedDrives, driveId];
+      onDriveSelectionChange(newSelection);
     }
   };
 
   const handleRefresh = async () => {
-    await refetch();
+    dispatch(setIsRefreshing(true));
+    try {
+      dispatch(refreshDriveStats()).unwrap().catch(() => {
+        // Error handling is done in the rejected case of the thunk
+      });
+    } finally {
+      dispatch(setIsRefreshing(false));
+    }
   };
   useEffect(() => {
     const data = drives || syncAlltDrives;
     if (Array.isArray(data)) {
-      setDashboardStats(data);
-    } else {
-      setDashboardStats([]);
+      // Dashboard stats are now managed by Redux slice
     }
   }, [syncAlltDrives, drives]);
 
@@ -87,6 +100,7 @@ export function TopBar({
           size="icon"
           onClick={onMenuClick}
           className="shrink-0"
+          aria-label="Open menu"
         >
           <Menu className="h-5 w-5" />
         </Button>
@@ -98,8 +112,9 @@ export function TopBar({
         <Input
           placeholder={isMobile ? "Search..." : "Search files, drives..."}
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => dispatch(setSearchQuery(e.target.value))}
           className="pl-9 h-9 md:h-10"
+          aria-label="Search files and drives"
         />
       </div>
 
@@ -109,10 +124,16 @@ export function TopBar({
         {!isMobile && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <HardDrive className="h-4 w-4" />
-                <span className="hidden sm:inline">test</span>
-                <ChevronDown className="h-4 w-4" />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2"
+                aria-label="Select drives"
+                aria-expanded="false"
+              >
+                <HardDrive className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Drives</span>
+                <ChevronDown className="h-4 w-4" aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
@@ -121,6 +142,7 @@ export function TopBar({
               <DropdownMenuCheckboxItem
                 checked={selectedDrives.length === 0}
                 onCheckedChange={() => handleDriveToggle("all")}
+                aria-label="Select all drives"
               >
                 <div className="flex items-center gap-2">
                   <HardDrive className="h-4 w-4" />
@@ -133,6 +155,7 @@ export function TopBar({
                   key={drive?._id}
                   checked={selectedDrives.includes(drive?._id)}
                   onCheckedChange={() => handleDriveToggle(drive?._id)}
+                  aria-label={`Select drive ${drive?.owner.displayName}`}
                 >
                   <div className="flex items-center gap-2 w-full">
                     <div
@@ -155,13 +178,15 @@ export function TopBar({
           variant="ghost"
           size="icon"
           onClick={handleRefresh}
-          disabled={isFetching || syncAllIsFetching}
+          disabled={isFetching || syncAllIsFetching || drivesLoading}
           className="h-9 border px-1 w-full"
+          aria-label="Refresh drive data"
+          aria-busy={isFetching || syncAllIsFetching || drivesLoading}
         >
           <RefreshCw
             className={cn(
               "h-4 w-4",
-              (isFetching || syncAllIsFetching) && "animate-spin"
+              (isFetching || syncAllIsFetching || drivesLoading) && "animate-spin"
             )}
           />
           {(!isFetching || !syncAllIsFetching) && dashboardStats[0]?.meta?.fetchedAt
@@ -180,8 +205,13 @@ export function TopBar({
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="gap-2 px-2 h-9">
-              <Avatar className="h-7 w-7 md:h-8 md:w-8">
+            <Button 
+              variant="ghost" 
+              className="gap-2 px-2 h-9"
+              aria-label={`User menu for ${user.name}`}
+              aria-expanded="false"
+            >
+              <Avatar className="h-7 w-7 md:h-8 md:w-8" aria-hidden="true">
                 <AvatarImage src={user.picture} alt={user.name} />
                 <AvatarFallback className="hover:text-black">
                   {user?.name

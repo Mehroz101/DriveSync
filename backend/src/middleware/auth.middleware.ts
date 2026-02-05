@@ -3,11 +3,7 @@ import { verifyToken } from "../utils/jwt.js";
 import User from "../models/user.js";
 import DriveAccount from "../models/driveAccount.js";
 import { Model, Document } from "mongoose";
-
-export interface AuthenticatedRequest extends Request {
-  userId?: string;
-  userEmail?: string;
-}
+import { AuthenticatedRequest } from "../types/index.js";
 
 export const authenticateToken = async (
   req: AuthenticatedRequest,
@@ -16,11 +12,11 @@ export const authenticateToken = async (
 ) => {
   try {
     // Get token from header
-    const authHeader = req.headers["authorization"];
+    const authHeader = (req.headers as any)['authorization'];
     const bearerToken = authHeader?.startsWith("Bearer ")
       ? authHeader.split(" ")[1]
       : null;
-    const cookieToken = req.cookies?.token;
+    const cookieToken = (req as any).cookies?.token;
     const token = bearerToken || cookieToken;
 
     if (!token) {
@@ -67,7 +63,7 @@ export function validateOwnership<T extends Document & { userId: any }>(
     next: NextFunction
   ) => {
     try {
-      const resourceId = req.params[paramName];
+      const resourceId = (req as Request).params[paramName];
 
       if (!resourceId) {
         return res

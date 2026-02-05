@@ -404,8 +404,13 @@ export default function FilesExplorer() {
             {selectedFiles.length} Selected
           </span>
 
-          <Button size="sm" variant="outline" onClick={downloadFiles}>
-            <Download className="h-4 w-4 mr-2" />
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={downloadFiles}
+            aria-label="Download selected files"
+          >
+            <Download className="h-4 w-4 mr-2" aria-hidden="true" />
             Download
           </Button>
 
@@ -415,6 +420,7 @@ export default function FilesExplorer() {
                 size="sm"
                 variant="destructive"
                 disabled={deleteFilesMutation.status === "pending"}
+                aria-label={`Delete ${selectedFiles.length} selected files`}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
@@ -606,12 +612,17 @@ export default function FilesExplorer() {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       {/* Preview button */}
-                      <Button size="icon" variant="ghost" asChild>
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        asChild
+                        aria-label={`Preview ${file.name}`}
+                      >
                         <a
                           href={file.webViewLink}
                           target="_blank"
                           rel="noreferrer"
-                          title="Preview"
+                          aria-label={`Preview ${file.name}`}
                         >
                           <Eye className="h-4 w-4" />
                         </a>
@@ -619,8 +630,12 @@ export default function FilesExplorer() {
 
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button size="icon" variant="ghost">
-                            <MoreVertical className="h-4 w-4" />
+                          <Button 
+                            size="icon" 
+                            variant="ghost"
+                            aria-label={`More options for ${file.name}`}
+                          >
+                            <MoreVertical className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </DropdownMenuTrigger>
 
@@ -631,14 +646,18 @@ export default function FilesExplorer() {
                               target="_blank"
                               rel="noreferrer"
                               className="flex gap-2 items-center"
+                              aria-label={`Open ${file.name} in new tab`}
                             >
                               <Eye className="h-4 w-4" />
                               Open
                             </a>
                           </DropdownMenuItem>
 
-                          <DropdownMenuItem className="gap-2">
-                            <Download className="h-4 w-4" />
+                          <DropdownMenuItem 
+                            className="gap-2"
+                            aria-label={`Download ${file.name}`}
+                          >
+                            <Download className="h-4 w-4" aria-hidden="true" />
                             Download
                           </DropdownMenuItem>
 
@@ -652,8 +671,11 @@ export default function FilesExplorer() {
                               fileId={file._id!}
                               driveId={file.driveAccountId}
                               trigger={
-                                <div className="flex gap-2 items-center text-destructive cursor-pointer w-full px-2 py-1.5">
-                                  <Trash2 className="h-4 w-4" />
+                                <div 
+                                  className="flex gap-2 items-center text-destructive cursor-pointer w-full px-2 py-1.5"
+                                  aria-label={`Delete ${file.name}`}
+                                >
+                                  <Trash2 className="h-4 w-4" aria-hidden="true" />
                                   Delete
                                 </div>
                               }

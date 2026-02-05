@@ -1,15 +1,8 @@
 import crypto from 'crypto';
+import { OAuthState } from '../types/index.js';
 
 const STATE_SECRET = process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET || 'fallback_state_secret';
 const STATE_EXPIRATION_MS = 15 * 60 * 1000; // 15 minutes
-
-export interface OAuthState {
-  userId: string;
-  csrfToken: string;
-  timestamp: number;
-  nonce: string;
-  meta?: Record<string, string>;
-}
 
 /**
  * Generate a cryptographically secure OAuth state parameter

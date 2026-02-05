@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import User from "../models/user.js";
 import File from "../models/file.js";
-import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
+import { AuthenticatedRequest } from "../types/index.js";
 import { getUserById } from "../services/auth.service.js";
 import driveAccount from "../models/driveAccount.js";
 import { generateOAuthState } from "../utils/oauthState.js";
@@ -19,6 +20,7 @@ import DriveAccount from "../models/driveAccount.js";
 import { Readable } from 'stream';
 import { checkAccountStatus } from "../utils/driveAuthUtils.js";
 import { DriveTokenExpiredError } from "../utils/driveAuthError.js";
+import { BulkWriteOperation } from "../types/index.js";
 
 const QUOTA_REFRESH_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -103,15 +105,38 @@ export const getAllDriveFilesSync = async (
           updateOne: {
             filter: {
               googleFileId: file.googleFileId,
-              driveAccountId: file.driveAccountId,
+              driveAccountId: typeof file.driveAccountId === 'string' ? new mongoose.Types.ObjectId(file.driveAccountId) : file.driveAccountId,
             },
-            update: { $set: file },
+            update: { $set: {
+              name: file.name || '',
+              mimeType: file.mimeType || '',
+              webViewLink: file.webViewLink || null,
+              webContentLink: file.webContentLink || null,
+              iconLink: file.iconLink || null,
+              thumbnailUrl: file.thumbnailUrl || null,
+              createdTime: file.createdTime || null,
+              modifiedTime: file.modifiedTime || null,
+              size: file.size ? Number(file.size) : 0,
+              owners: (file.owners || []).map(owner => ({
+                displayName: owner.displayName || null,
+                emailAddress: owner.emailAddress || null,
+              })),
+              parents: file.parents || [],
+              starred: file.starred || false,
+              trashed: file.trashed || false,
+              shared: file.shared || false,
+              isDuplicate: false,
+              description: file.description || '',
+              userId: typeof file.userId === 'string' ? new mongoose.Types.ObjectId(file.userId) : file.userId,
+              driveAccountId: typeof file.driveAccountId === 'string' ? new mongoose.Types.ObjectId(file.driveAccountId) : file.driveAccountId,
+              googleFileId: file.googleFileId || '',
+            }},
             upsert: true,
           },
         }));
 
         if (bulkOps.length > 0) {
-          await File.bulkWrite(bulkOps);
+          await File.bulkWrite(bulkOps as mongoose.AnyBulkWriteOperation<any>[]);
         }
         syncResults.successCount++;
         console.log(`✅ Synced ${files.length} files from ${account.email}`);

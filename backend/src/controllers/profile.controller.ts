@@ -3,7 +3,7 @@ import User from "../models/user.js";
 import DriveAccount from "../models/driveAccount.js";
 import { fetchGoogleProfile } from "../services/profile.service.js";
 import { ApiError } from "../utils/apiError.js";
-import { AuthenticatedRequest } from "../middleware/auth.middleware.js";
+import { AuthenticatedRequest } from "../types/index.js";
 
 export const getProfile = async (
   req: AuthenticatedRequest,
