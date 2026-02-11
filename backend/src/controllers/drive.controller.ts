@@ -9,7 +9,7 @@ import {
   updateDriveData,
   fetchDriveStatsFromDatabase,
 } from "../services/drive.service.js";
-import { AuthenticatedRequest } from "../types/index.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 import { getUserById } from "../services/auth.service.js";
 import driveAccount from "../models/driveAccount.js";
 import { generateOAuthState } from "../utils/oauthState.js";

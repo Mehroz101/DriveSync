@@ -1,0 +1,19 @@
+{
+  "name": "@drivesync/shared-types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types for DriveSync frontend and backend",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": ["typescript", "types", "drivesync"],
+  "author": "DriveSync Team",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "files": ["dist/**/*"]
+}

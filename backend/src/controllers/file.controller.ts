@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import User from "../models/user.js";
 import File from "../models/file.js";
-import { AuthenticatedRequest } from "../types/index.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 import { getUserById } from "../services/auth.service.js";
 import driveAccount from "../models/driveAccount.js";
 import { generateOAuthState } from "../utils/oauthState.js";
@@ -20,7 +20,7 @@ import DriveAccount from "../models/driveAccount.js";
 import { Readable } from 'stream';
 import { checkAccountStatus } from "../utils/driveAuthUtils.js";
 import { DriveTokenExpiredError } from "../utils/driveAuthError.js";
-import { BulkWriteOperation } from "../types/index.js";
+import type { BulkWriteOperation } from "../types/index.js";
 
 const QUOTA_REFRESH_TTL_MS = 10 * 60 * 1000; // 10 minutes
 

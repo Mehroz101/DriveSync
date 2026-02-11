@@ -6,7 +6,7 @@ import File from "../models/file.js";
 import mongoose, { PipelineStage } from "mongoose";
 import { handleTokenError, isAuthError } from "../utils/driveAuthUtils.js";
 import { DriveTokenExpiredError } from "../utils/driveAuthError.js";
-import { DashboardStats } from "../types/index.js";
+import type { DashboardStats } from "../types/index.js";
 
 interface FileItem {
   fileId: string;

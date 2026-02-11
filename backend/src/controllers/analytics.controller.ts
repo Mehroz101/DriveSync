@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { AuthenticatedRequest } from "../types/index.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 import { AnalyticsService } from "../services/analytics.service.js";
 
 const analyticsService = new AnalyticsService();

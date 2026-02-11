@@ -1,8 +1,8 @@
 import jwt from 'jsonwebtoken';
-import { JwtPayload } from '../types/index.js';
+import type { JwtPayload } from '../types/index.js';
 
 // Re-export JwtPayload so other modules can import it from this module
-export { JwtPayload };
+export type { JwtPayload };
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_development';
 

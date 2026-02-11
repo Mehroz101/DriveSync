@@ -1,65 +1,144 @@
-// src/server.ts
 import dotenv from "dotenv";
+import { Request, Response } from "express";
 dotenv.config();
-import express from "express";
-import rateLimit from "express-rate-limit";
-import mongoose from "mongoose";
-import passport from "./config/passport.js";
-import cors from "cors";
-import cookieSession from "cookie-session";
-import driveRoutes from "./routes/drive.routes.js";
-import profileRoutes from "./routes/profile.routes.js";
-import googleAuthRoutes from "./routes/auth.router.js";
-import emailAuthRoutes from "./routes/auth.routes.js";
-import fileRoutes from "./routes/file.routes.js";
-import searchRoutes from "./routes/search.routes.js";
-import analyticsRoutes from "./routes/analytics.routes.js";
-import duplicatesRoutes from "./routes/duplicates.routes.js";
-import { errorHandler } from "./middleware/error.middleware.js";
-import { httpLogger } from "./utils/logger.js";
-import connectDB from "./auth/db.js";
-import util from "node:util";
 
-const formatError = (err: unknown) => {
-  if (err instanceof Error) return err.stack || err.message;
-  try {
-    return util.inspect(err, { depth: null, showHidden: true });
-  } catch (e) {
-    return String(err);
-  }
-};
+console.log('✅ Starting server initialization...');
 
+// Wrap entire startup in try-catch to capture all errors
+async function initializeServer() {
+try {
+  console.log('📦 Loading core modules...');
+  
+  // Core imports first
+  const expressModule = await import("express");
+  const express = expressModule.default;
+  
+  const corsModule = await import("cors");
+  const cors = corsModule.default;
+  
+  const cookieSessionModule = await import("cookie-session");
+  const cookieSession = cookieSessionModule.default;
+  
+  const helmetModule = await import("helmet");
+  const helmet = helmetModule.default;
+  
+  const compressionModule = await import("compression");
+  const compression = compressionModule.default;
+  
+  const rateLimitModule = await import("express-rate-limit");
+  const rateLimit = rateLimitModule.default;
+  
+  console.log('🔧 Loading utilities...');
+  const { httpLogger, logger } = await import("./utils/logger.js");
+  const connectDBModule = await import("./auth/db.js");
+  const connectDB = connectDBModule.default;
+  
+  console.log('🔐 Loading passport config...');
+  const passportModule = await import("./config/passport.js");
+  const passport = passportModule.default;
+  
+  console.log('🛠️  Loading middleware...');
+  const { errorHandler } = await import("./middleware/error.middleware.js");
+  
+  console.log('🚏 Loading routes...');
+  const driveRoutesModule = await import("./routes/drive.routes.js");
+  const driveRoutes = driveRoutesModule.default;
+  
+  const profileRoutesModule = await import("./routes/profile.routes.js");
+  const profileRoutes = profileRoutesModule.default;
+  
+  const googleAuthRoutesModule = await import("./routes/auth.router.js");
+  const googleAuthRoutes = googleAuthRoutesModule.default;
+  
+  const emailAuthRoutesModule = await import("./routes/auth.routes.js");
+  const emailAuthRoutes = emailAuthRoutesModule.default;
+  
+  const fileRoutesModule = await import("./routes/file.routes.js");
+  const fileRoutes = fileRoutesModule.default;
+  
+  const searchRoutesModule = await import("./routes/search.routes.js");
+  const searchRoutes = searchRoutesModule.default;
+  
+  const analyticsRoutesModule = await import("./routes/analytics.routes.js");
+  const analyticsRoutes = analyticsRoutesModule.default;
+  
+  const duplicatesRoutesModule = await import("./routes/duplicates.routes.js");
+  const duplicatesRoutes = duplicatesRoutesModule.default;
+
+  console.log('🎉 All modules loaded successfully!');
+
+// Error handling for uncaught exceptions
 process.on("uncaughtException", (err) => {
-  console.error("UNCAUGHT EXCEPTION:", formatError(err));
-  // Exit so process restarts in a clean state
+  const errorMsg = err instanceof Error ? err.stack || err.message : String(err);
+  logger.error("UNCAUGHT EXCEPTION:", errorMsg);
   process.exit(1);
 });
 
 process.on("unhandledRejection", (reason) => {
-  console.error("UNHANDLED REJECTION:", formatError(reason));
-  // Exit so process restarts in a clean state
+  const errorMsg = reason instanceof Error ? reason.stack || reason.message : String(reason);
+  logger.error("UNHANDLED REJECTION:", errorMsg);
   process.exit(1);
 });
 
 const app = express();
 let server: any = null;
 
+// Security middleware (must be first)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://accounts.google.com", "https://googleapis.com"],
+    },
+  },
+  crossOriginEmbedderPolicy: false // Allow embedding for OAuth
+}));
+
+// Compression middleware
+app.use(compression({ level: 6, threshold: 1024 }));
+
 // HTTP request logging
 app.use(httpLogger);
 
-// Rate limiting middleware
-// const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000, // 15 minutes
-//   max: 100, // limit each IP to 100 requests per windowMs
-//   message: {
-//     error: 'Too many requests from this IP, please try again later.'
-//   },
-//   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-//   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-// });
+// Health check endpoints (basic for now)
+app.get('/health', (req: Request, res: Response) => {
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime())
+  });
+});
 
-// // Apply rate limiting to all requests
-// app.use(limiter);
+app.get('/health/live', (req: Request, res: Response) => {
+  res.json({ status: 'alive', timestamp: new Date().toISOString() });
+});
+
+app.get('/health/ready', (req: Request, res: Response) => {
+  res.json({ 
+    status: 'ready', 
+    timestamp: new Date().toISOString(),
+    database: 'connected'
+  });
+});
+
+app.get('/metrics', (req: Request, res: Response) => {
+  res.set('Content-Type', 'text/plain');
+  res.send('# Basic metrics\nuptime ' + Math.floor(process.uptime()));
+});
+
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/api', apiLimiter);
 
 // Configure CORS with specific origins for production security
 const allowedOrigins = process.env.NODE_ENV === 'production' 
@@ -67,7 +146,7 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
   : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
 
 app.use(cors({ 
-  origin: (origin, callback) => {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
@@ -79,30 +158,35 @@ app.use(cors({
   },
   credentials: true 
 }));
-app.use(express.json()); 
+
+// Parse JSON with size limits
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 // Session middleware for Google OAuth
 app.use(
   cookieSession({
     name: "session",
-    keys: [process.env.SESSION_SECRET || (() => {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('SESSION_SECRET is required in production');
+    keys: [(() => {
+      const secret = process.env.SESSION_SECRET;
+      if (!secret) {
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error('SESSION_SECRET is required in production');
+        }
+        logger.warn('⚠️  Using default session secret - NOT SECURE for production');
+        return "development-secret-key-change-in-production";
       }
-      console.warn('⚠️  Using default session secret - NOT SECURE for production');
-      return "development-secret-key-change-in-production";
+      return secret;
     })()],
     maxAge: 24 * 60 * 60 * 1000,
-    secure: process.env.NODE_ENV === "production" ? true : false,
+    secure: process.env.NODE_ENV === "production",
     httpOnly: true,
+    sameSite: 'lax'
   })
 );
 
 app.use(passport.initialize());
 app.use(passport.session());
-
-// Security middleware
-app.use(express.json({ limit: '10mb' })); // Limit request body size
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Remove Express header for security
 app.disable('x-powered-by');
@@ -110,9 +194,17 @@ app.disable('x-powered-by');
 // Connect to MongoDB and start the HTTP server
 async function startServer() {
   try {
+    console.log('🔌 Attempting to connect to MongoDB...');
     await connectDB();
+    console.log('✅ MongoDB connected successfully');
+  } catch (dbError) {
+    console.warn('⚠️  MongoDB connection failed - starting server without database');
+    console.warn('   Database error:', dbError instanceof Error ? dbError.message : String(dbError));
+    console.warn('   Some features may not work properly');
+  }
 
-    app.use("/test", (req, res) => {
+  try {
+    app.use("/test", (req: Request, res: Response) => {
       res.send("Server is running");
     });
     app.use("/api/email-auth", emailAuthRoutes);
@@ -126,9 +218,19 @@ async function startServer() {
     app.use(errorHandler);
 
     const port = process.env.PORT || 4000;
-    server = app.listen(port, () => console.log(`Server running on port ${port}`));
+    server = app.listen(port, () => {
+      logger.info(`✓ Server running on port ${port}`);
+      console.log(`✓ Server running on port ${port}`);
+      console.log(`📡 Health check: http://localhost:${port}/health`);
+    });
   } catch (err) {
-    console.error("Failed to start server:", formatError(err));
+    console.error("🚨 Failed to start server:");
+    if (err instanceof Error) {
+      console.error("   Error:", err.message);
+      console.error("   Stack:", err.stack);
+    } else {
+      console.error("   Unknown error:", err);
+    }
     process.exit(1);
   }
 }
@@ -147,3 +249,27 @@ process.on("SIGTERM", () => {
     process.exit(0);
   }
 });
+
+} catch (error) {
+  console.error("🚨 Fatal error during server initialization:");
+  if (error instanceof Error) {
+    console.error("   Error name:", error.name);
+    console.error("   Error message:", error.message);
+    console.error("   Stack trace:", error.stack);
+  } else {
+    console.error("   Non-Error object thrown:", error);
+    console.error("   Type:", typeof error);
+    console.error("   Constructor:", error?.constructor?.name);
+    // Try to stringify the error object
+    try {
+      console.error("   JSON:", JSON.stringify(error, null, 2));
+    } catch {
+      console.error("   Unable to stringify error object");
+    }
+  }
+  process.exit(1);
+}
+}
+
+// Start the initialization
+initializeServer();

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { AuthenticatedRequest } from "../types/index.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 import { getDuplicatesService } from "../services/duplicates.service.js";
 
 export const getDuplicates = async (

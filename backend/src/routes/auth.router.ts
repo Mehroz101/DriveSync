@@ -7,7 +7,7 @@ import {
   checkAndMarkNonce,
 } from "../utils/oauthState.js";
 import { authenticateToken } from "../middleware/auth.middleware.js";
-import { AuthenticatedRequest } from "../types/index.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 import driveAccount from "../models/driveAccount.js";
 import { fetchDriveStats } from "../services/drive.service.js";
 

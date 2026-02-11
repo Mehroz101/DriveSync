@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { registerUser, loginUser, getUserById } from '../services/auth.service.js';
-import { AuthenticatedRequest } from '../types/index.js';
+import type { AuthenticatedRequest } from '../types/index.js';
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {

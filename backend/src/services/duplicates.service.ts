@@ -1,6 +1,6 @@
 import mongoose, { PipelineStage } from "mongoose";
 import File from "../models/file.js";
-import { DuplicateGroup } from "../types/index.js";
+import type { DuplicateGroup } from "../types/index.js";
 
 export const getDuplicatesService = async (userId: string): Promise<DuplicateGroup[]> => {
 

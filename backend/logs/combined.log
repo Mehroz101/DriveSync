@@ -228,3 +228,31 @@
 {"level":"info","message":"Fetching file type distribution","timestamp":"2026-02-05 22:39:05","userId":"6975ea02fb94405003efde12"}
 {"driveCount":4,"level":"info","message":"Dashboard stats fetched successfully","timestamp":"2026-02-05 22:39:11","totalFiles":5465,"userId":"6975ea02fb94405003efde12"}
 {"level":"info","message":"File type distribution fetched successfully","timestamp":"2026-02-05 22:39:11","typeCount":36,"userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"Fetching storage analytics","timestamp":"2026-02-05 22:48:41","userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"Fetching dashboard stats","timestamp":"2026-02-05 22:48:41","userId":"6975ea02fb94405003efde12"}
+{"driveCount":4,"level":"info","message":"Storage analytics fetched successfully","timestamp":"2026-02-05 22:48:41","userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"Fetching file type distribution","timestamp":"2026-02-05 22:48:42","userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"Fetching drive usage stats","timestamp":"2026-02-05 22:48:42","userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"Drive usage stats fetched successfully","timestamp":"2026-02-05 22:48:42","totalDrives":4,"userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"File type distribution fetched successfully","timestamp":"2026-02-05 22:48:50","typeCount":36,"userId":"6975ea02fb94405003efde12"}
+{"driveCount":4,"level":"info","message":"Dashboard stats fetched successfully","timestamp":"2026-02-05 22:48:51","totalFiles":5465,"userId":"6975ea02fb94405003efde12"}
+{"duration":30037,"ip":"::1","level":"error","message":"GET /api/profile 500 30037ms","method":"GET","statusCode":500,"timestamp":"2026-02-06 18:10:09","url":"/api/profile","userAgent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"}
+{"level":"info","message":"Fetching file type distribution","timestamp":"2026-02-10 20:21:33","userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"Fetching dashboard stats","timestamp":"2026-02-10 20:21:33","userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"Fetching drive usage stats","timestamp":"2026-02-10 20:21:33","userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"Drive usage stats fetched successfully","timestamp":"2026-02-10 20:21:34","totalDrives":4,"userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"Fetching storage analytics","timestamp":"2026-02-10 20:21:34","userId":"6975ea02fb94405003efde12"}
+{"driveCount":4,"level":"info","message":"Storage analytics fetched successfully","timestamp":"2026-02-10 20:21:34","userId":"6975ea02fb94405003efde12"}
+{"driveCount":4,"level":"info","message":"Dashboard stats fetched successfully","timestamp":"2026-02-10 20:21:36","totalFiles":5465,"userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"File type distribution fetched successfully","timestamp":"2026-02-10 20:21:39","typeCount":36,"userId":"6975ea02fb94405003efde12"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-11 18:38:58"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-11 18:39:44"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-11 18:40:55"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-11 18:44:01"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-11 18:45:41"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-11 18:46:22"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-11 18:49:35"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-11 18:53:29"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-11 18:55:37"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-11 19:03:38"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-11 19:03:57"}

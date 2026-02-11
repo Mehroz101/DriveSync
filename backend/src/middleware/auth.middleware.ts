@@ -3,7 +3,7 @@ import { verifyToken } from "../utils/jwt.js";
 import User from "../models/user.js";
 import DriveAccount from "../models/driveAccount.js";
 import { Model, Document } from "mongoose";
-import { AuthenticatedRequest } from "../types/index.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 
 export const authenticateToken = async (
   req: AuthenticatedRequest,
