@@ -4,7 +4,8 @@ import {
   getFileTypeDistribution,
   getDriveUsageStats,
   getDashboardStats,
-  getAnalyticsFiles
+  getAnalyticsFiles,
+  getDriveAccounts
 } from "@/api/analytics/analytics.api";
 import { analyticsKeys } from "@/api/analytics/analytics.keys";
 
@@ -52,6 +53,16 @@ export const useAnalyticsFiles = () => {
   return useQuery({
     queryKey: analyticsKeys.files(),
     queryFn: getAnalyticsFiles,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
+};
+
+export const useDriveAccounts = () => {
+  return useQuery({
+    queryKey: analyticsKeys.driveAccounts(),
+    queryFn: getDriveAccounts,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,
     refetchOnWindowFocus: false,

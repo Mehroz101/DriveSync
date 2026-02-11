@@ -8,6 +8,7 @@ import {
   fetchDriveStats,
   updateDriveData,
   fetchDriveStatsFromDatabase,
+  fetchMultipleDriveStatsFromDatabase,
 } from "../services/drive.service.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 import { getUserById } from "../services/auth.service.js";
@@ -314,15 +315,13 @@ export const driveStats = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const user = await getUserById(req.userId!);
     const driveAccounts = await driveAccount.find({ userId: req.userId! });
-    // const stats = await Promise.allSettled(driveAccounts.map((account) => fetchDriveStats(account)));
-    const stats = await Promise.allSettled(
-      driveAccounts.map((account) => fetchDriveStatsFromDatabase(account))
-    );
-    const filteredStats = stats
-      .filter((stat) => stat.status === "fulfilled")
-      .map((stat) => stat.value);
-    return res.status(200).json(filteredStats);
+    
+    // Use optimized function that calculates global duplicates once
+    const stats = await fetchMultipleDriveStatsFromDatabase(driveAccounts);
+    
+    return res.status(200).json(stats);
   } catch (error) {
     console.log(error);
+    res.status(500).json({ error: "Failed to fetch drive stats" });
   }
 };

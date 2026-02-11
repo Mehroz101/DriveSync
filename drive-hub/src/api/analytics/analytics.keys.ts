@@ -14,4 +14,6 @@ export const analyticsKeys = {
   dashboard: () => [...analyticsKeys.all, "dashboard"] as const,
 
   files: () => [...analyticsKeys.all, "files"] as const,
+
+  driveAccounts: () => [...analyticsKeys.all, "drive-accounts"] as const,
 };

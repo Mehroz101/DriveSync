@@ -90,6 +90,7 @@ export interface DashboardStats {
     totalStorageLimit: number;
     storagePercentage: number;
     duplicateFiles: number;
+    duplicateSize: number;
     sharedFiles: number;
     starredFiles: number;
     duplicatePercentage: number;

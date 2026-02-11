@@ -26,7 +26,7 @@ function aggregateDriveStats(drives: DriveAccount[]): AggregatedStats {
       totalStorageUsed: acc.totalStorageUsed + drive?.storage?.usedInDrive,
       connectedDrives: acc.connectedDrives + 1,
       duplicateFiles: acc.duplicateFiles + drive?.stats?.duplicateFiles,
-      duplicateSpace: acc.duplicateSpace, // Note: You'll need to calculate this based on your logic
+      duplicateSpace: acc.duplicateSpace + drive?.stats?.duplicateSize,
       totalStorage: acc.totalStorage + drive?.storage?.total,
     }),
     {
@@ -42,9 +42,9 @@ function aggregateDriveStats(drives: DriveAccount[]): AggregatedStats {
 
 export default function Dashboard() {
   const { data: drives, isLoading } = useDriveAccountStats();
-
+  console.log("drives",drives)
   const aggregatedStats = drives ? aggregateDriveStats(drives) : null;
-
+  console.log("aggregateStats",aggregatedStats)
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
       {/* Page Header */}

@@ -9,11 +9,11 @@ export interface User {
 }
 // types/drive.ts or wherever you keep your types
 export interface DriveOwner {
-  kind?: string; // optional: 'drive#user'
+  // kind?: string; // optional: 'drive#user'
   displayName?: string;
   photoLink?: string;
-  me?: boolean;
-  permissionId?: string;
+  // me?: boolean;
+  // permissionId?: string;
   emailAddress?: string;
   _id?: string; // backend sometimes returns an internal id
 }
@@ -31,6 +31,7 @@ export interface DriveStats {
   totalFolders: number;
   trashedFiles: number;
   duplicateFiles: number;
+  duplicateSize: number;
 }
 
 export interface DriveMeta {
@@ -128,18 +129,45 @@ export interface Activity {
 
 // Analytics Types
 export interface StorageAnalytics {
-  date: string;
-  totalStorage: number;
-  usedStorage: number;
+  driveId: string;
+  owner: {
+    displayName: string;
+    emailAddress: string | null;
+  };
+  storage: {
+    used: number;
+    total: number;
+    percentage: number;
+  };
+  stats: {
+    totalFiles: number;
+    duplicateFiles: number;
+    duplicateSize: number;
+    totalSize: number;
+  };
 }
 
 export interface FileTypeDistribution {
-  mimeType: FileType;
+  mimeType: string;
   count: number;
-  size: number;
   percentage: number;
+  size?: number;
 }
 
+export interface DriveUsageStatsResponse {
+  totalDrives: number;
+  activeDrives: number;
+  revokedDrives: number;
+  disconnectedDrives: number;
+  storageByStatus: {
+    active: number;
+    revoked: number;
+    disconnected: number;
+  };
+  averageStorageUsage: number;
+}
+
+// Keep the original for chart data transformation
 export interface DriveUsageStats {
   driveId: string;
   driveName: string;
@@ -192,6 +220,31 @@ export interface FileFilter {
 
 // Stats Types
 export interface DashboardStats {
+  summary: {
+    totalDrives: number;
+    totalFiles: number;
+    totalStorageUsed: number;
+    totalStorageLimit: number;
+    storagePercentage: number;
+    duplicateFiles: number;
+    duplicateSize: number;
+    sharedFiles: number;
+    starredFiles: number;
+    duplicatePercentage: number;
+  };
+  drives: DriveAccount[];
+  fileStats: {
+    totalFiles: number;
+    duplicateFiles: number;
+    duplicateSize: number;
+    sharedFiles: number;
+    starredFiles: number;
+  };
+  lastUpdated: string;
+}
+
+// Legacy flat format for backward compatibility
+export interface DashboardStatsFlat {
   totalFiles: number;
   totalStorageUsed: number;
   connectedDrives: number;

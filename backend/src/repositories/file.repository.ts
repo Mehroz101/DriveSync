@@ -187,7 +187,54 @@ export class FileRepository {
     ];
 
     const result = await File.aggregate(pipeline);
-    return result[0] || null;
+    
+    // Calculate actual duplicates from files (by name+size)
+    const duplicateStatsPipeline: PipelineStage[] = [
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          trashed: false,
+          mimeType: { $ne: "application/vnd.google-apps.folder" },
+        },
+      },
+      {
+        $group: {
+          _id: { name: "$name", size: "$size" },
+          count: { $sum: 1 },
+          size: { $first: "$size" },
+        },
+      },
+      {
+        $match: {
+          count: { $gt: 1 },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          duplicateCount: { $sum: 1 },
+          totalDuplicateSize: {
+            $sum: {
+              $multiply: [{ $subtract: ["$count", 1] }, "$size"],
+            },
+          },
+        },
+      },
+    ];
+    
+    const duplicateResult = await File.aggregate(duplicateStatsPipeline);
+    
+    const baseStats = result[0] || null;
+    
+    if (!baseStats) {
+      return null;
+    }
+    
+    // Override duplicateFiles with actual count from name+size grouping
+    baseStats.duplicateFiles = duplicateResult[0]?.duplicateCount || 0;
+    baseStats.duplicateSize = duplicateResult[0]?.totalDuplicateSize || 0;
+    
+    return baseStats;
   }
 
   /**

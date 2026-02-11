@@ -3,9 +3,10 @@ import { apiClient } from "../http/axios.client";
 import type {
   StorageAnalytics,
   FileTypeDistribution,
-  DriveUsageStats,
+  DriveUsageStatsResponse,
   DriveFile,
-  DashboardStats
+  DashboardStats,
+  DriveAccount
 } from "@/types";
 
 export const getStorageAnalytics = async (
@@ -35,10 +36,21 @@ export const getFileTypeDistribution = async (): Promise<FileTypeDistribution[]>
   }
 };
 
-export const getDriveUsageStats = async (): Promise<DriveUsageStats[]> => {
+export const getDriveUsageStats = async (): Promise<DriveUsageStatsResponse> => {
   try {
     const response = await apiClient.get('/analytics/drive-usage-stats');
     return response.data.data;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+};
+
+// Get drive accounts for chart data
+export const getDriveAccounts = async (): Promise<DriveAccount[]> => {
+  try {
+    const response = await apiClient.get('/drive/stats');
+    return response.data;
   } catch (error) {
     console.error(error);
     throw error;

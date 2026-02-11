@@ -35,6 +35,7 @@ export class AnalyticsService {
       
       const totalFiles = fileStats?.totalFiles || 0;
       const duplicateFiles = fileStats?.duplicateFiles || 0;
+      const duplicateSize = fileStats?.duplicateSize || 0;
       const sharedFiles = fileStats?.sharedFiles || 0;
       const starredFiles = fileStats?.starredFiles || 0;
       
@@ -50,6 +51,7 @@ export class AnalyticsService {
           totalStorageLimit,
           storagePercentage: Math.round(storagePercentage * 100) / 100,
           duplicateFiles,
+          duplicateSize,
           sharedFiles,
           starredFiles,
           duplicatePercentage: totalFiles > 0 

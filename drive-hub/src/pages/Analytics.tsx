@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   AreaChart,
   Area,
@@ -42,15 +42,17 @@ import {
   useFileTypeDistribution,
   useDriveUsageStats,
   useDashboardStats,
-  useAnalyticsFiles
+  useAnalyticsFiles,
+  useDriveAccounts
 } from "@/queries/analytics/useAnalytic";
 import { formatBytes, formatNumber } from "@/lib/formatters";
 import type {
   StorageAnalytics,
   FileTypeDistribution,
-  DriveUsageStats,
+  DriveUsageStatsResponse,
   DriveFile,
   DashboardStats,
+  DriveAccount,
 } from "@/types";
 
 const CHART_COLORS = [
@@ -65,22 +67,24 @@ const CHART_COLORS = [
 ];
 
 interface storageChartData {
-  date: string;
+  name: string;
   used: number;
   total: number;
 }
 
 interface pieChartData {
-  name:string;
-  value:number;
-  size:number
+  name: string;
+  value: number;
+  size: number;
 }
+
 interface driveBarData {
   name: string;
-  used:number;
-  total:number;
-  files:number
+  used: number;
+  total: number;
+  files: number;
 }
+
 export default function Analytics() {
   const [dateRange, setDateRange] = useState("7d");
 
@@ -106,48 +110,50 @@ export default function Analytics() {
     endDate.toISOString().split('T')[0]
   );
   const { data: fileTypes = [], isLoading: fileTypesLoading } = useFileTypeDistribution();
-  const { data: driveStats = [], isLoading: driveStatsLoading } = useDriveUsageStats();
+  const { data: driveUsageStats, isLoading: driveStatsLoading } = useDriveUsageStats();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: files = [], isLoading: filesLoading } = useAnalyticsFiles();
+  const { data: driveAccounts = [], isLoading: driveAccountsLoading } = useDriveAccounts();
+console.log("stats",stats)
+  const loading = storageLoading || fileTypesLoading || driveStatsLoading || statsLoading || filesLoading || driveAccountsLoading;
 
-  const loading = storageLoading || fileTypesLoading || driveStatsLoading || statsLoading || filesLoading;
-console.log("fileTypes:", fileTypes);
-console.log("driveStats:", driveStats);
-console.log("stats:", stats);
-console.log("files:", files);
   // Transform data for charts
-  const storageChartData = storageData.map((item) => ({
-    date: new Date(item.date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    }),
-    used: item.usedStorage / (1024 * 1024 * 1024),
-    total: item.totalStorage / (1024 * 1024 * 1024),
-  }));
-  const pieChartData = fileTypes.map((item) => ({
-    name: item.mimeType.charAt(0).toUpperCase() + item.mimeType.slice(1),
-    value: item.count,
-    size: item.size,
+  const storageChartData: storageChartData[] = storageData.map((item) => ({
+    name: item.owner.displayName || 'Unknown',
+    used: item.storage.used / (1024 * 1024 * 1024),
+    total: item.storage.total / (1024 * 1024 * 1024),
   }));
 
-  const safeDriveStats = Array.isArray(driveStats) ? driveStats : [];
+  // Take only top 10 file types by count and format names
+  const pieChartData: pieChartData[] = fileTypes
+    .slice(0, 10)
+    .map((item) => {
+      const extension = item.mimeType.split('/').pop() || item.mimeType;
+      // Format common mime types for better display
+      const displayName = extension
+        .replace('vnd.google-apps.', '')
+        .replace('vnd.openxmlformats-officedocument.', '')
+        .replace('application', 'app')
+        .split('.')[0];
+      
+      return {
+        name: displayName.charAt(0).toUpperCase() + displayName.slice(1),
+        value: item.count,
+        size: item.size || 0,
+      };
+    });
 
-  const driveBarData = safeDriveStats.map((item: any) => {
-    // Resolve name from multiple possible shapes
-    const rawName = item.driveName ?? item.owner?.displayName ?? item.owner?.name ?? item.driveId ?? 'Drive';
-    const name = typeof rawName === 'string' && rawName.length > 10 ? `${rawName.slice(0,10)}...` : String(rawName);
-
-    // Resolve storage fields (bytes) from multiple possible shapes
-    const usedBytes = item.storage?.used ?? item.storageUsed ?? item.used ?? 0;
-    const totalBytes = item.storage?.total ?? item.storageTotal ?? item.total ?? 0;
-    const files = item.stats?.totalFiles ?? item.fileCount ?? 0;
+  // Use driveAccounts from /drive/stats for the bar chart
+  const driveBarData: driveBarData[] = driveAccounts.map((drive: DriveAccount) => {
+    const rawName = drive.owner?.displayName || drive.owner?.emailAddress || 'Drive';
+    const name = rawName.length > 15 ? `${rawName.slice(0, 15)}...` : rawName;
 
     return {
       name,
-      used: usedBytes / (1024 * 1024 * 1024),
-      total: totalBytes / (1024 * 1024 * 1024),
-      files,
-    } as driveBarData;
+      used: drive.storage.used / (1024 * 1024 * 1024),
+      total: drive.storage.total / (1024 * 1024 * 1024),
+      files: drive.stats.totalFiles,
+    };
   });
 
   // Largest files
@@ -229,7 +235,15 @@ console.log("files:", files);
 }
 
 const StatsCards = ({ stats }: { stats: DashboardStats | undefined }) => {
-  if (!stats) return null;
+  if (!stats || !stats.summary) return null;
+  const totalFiles = stats.summary.totalFiles ?? 0;
+  const totalStorageUsed = stats.summary.totalStorageUsed ?? 0;
+  const connectedDrives = stats.summary.totalDrives ?? 0;
+  const duplicateFiles = stats.summary.duplicateFiles ?? 0;
+  
+  // Calculate duplicate space based on files (estimate)
+  const avgFileSize = totalFiles > 0 ? totalStorageUsed / totalFiles : 0;
+  const duplicateSpace = duplicateFiles * avgFileSize;
 
   return (
     <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -240,7 +254,7 @@ const StatsCards = ({ stats }: { stats: DashboardStats | undefined }) => {
               <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-white" />
             </div>
             <div>
-              <p className="text-lg md:text-2xl font-bold">{stats.totalFiles.toLocaleString()}</p>
+              <p className="text-lg md:text-2xl font-bold">{totalFiles.toLocaleString()}</p>
               <p className="text-xs md:text-sm text-muted-foreground">
                 Total Files
               </p>
@@ -256,7 +270,7 @@ const StatsCards = ({ stats }: { stats: DashboardStats | undefined }) => {
               <HardDrive className="h-5 w-5 md:h-6 md:w-6 text-white" />
             </div>
             <div>
-              <p className="text-lg md:text-2xl font-bold">{formatBytes(stats.totalStorageUsed)}</p>
+              <p className="text-lg md:text-2xl font-bold">{formatBytes(totalStorageUsed)}</p>
               <p className="text-xs md:text-sm text-muted-foreground">
                 Storage Used
               </p>
@@ -272,7 +286,7 @@ const StatsCards = ({ stats }: { stats: DashboardStats | undefined }) => {
               <Files className="h-5 w-5 md:h-6 md:w-6 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-lg md:text-2xl font-bold">{stats.connectedDrives}</p>
+              <p className="text-lg md:text-2xl font-bold">{connectedDrives}</p>
               <p className="text-xs md:text-sm text-muted-foreground">Connected Drives</p>
             </div>
           </div>
@@ -286,9 +300,9 @@ const StatsCards = ({ stats }: { stats: DashboardStats | undefined }) => {
               <AlertTriangle className="h-5 w-5 md:h-6 md:w-6 text-white" />
             </div>
             <div>
-              <p className="text-lg md:text-2xl font-bold">{formatBytes(stats.duplicateSpace)}</p>
+              <p className="text-lg md:text-2xl font-bold">{formatBytes(duplicateSpace)}</p>
               <p className="text-xs md:text-sm text-muted-foreground">
-                Duplicate Space ({stats.duplicateFiles} files)
+                Duplicate Space ({duplicateFiles} files)
               </p>
             </div>
           </div>
@@ -298,13 +312,13 @@ const StatsCards = ({ stats }: { stats: DashboardStats | undefined }) => {
   );
 };
 
-const GrowthCard = ({ storageChartData }:{storageChartData: storageChartData[]}) => {
+const GrowthCard = ({ storageChartData }: { storageChartData: storageChartData[] }) => {
   return (
     <Card>
       <CardHeader className="pb-2 md:pb-4">
-        <CardTitle className="text-base md:text-lg">Storage Growth</CardTitle>
+        <CardTitle className="text-base md:text-lg">Storage by Drive</CardTitle>
         <CardDescription className="text-xs md:text-sm">
-          Storage usage over the past week
+          Storage usage across connected drives
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -326,14 +340,14 @@ const GrowthCard = ({ storageChartData }:{storageChartData: storageChartData[]})
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
-              dataKey="date"
+              dataKey="name"
               stroke="hsl(var(--muted-foreground))"
               fontSize={11}
             />
             <YAxis
               stroke="hsl(var(--muted-foreground))"
               fontSize={11}
-              tickFormatter={(v) => `${v}GB`}
+              tickFormatter={(v) => `${v.toFixed(1)}GB`}
             />
             <Tooltip
               contentStyle={{

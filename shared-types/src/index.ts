@@ -75,6 +75,7 @@ export interface DriveStats {
   totalFolders: number;
   trashedFiles: number;
   duplicateFiles: number;
+  duplicateSize: number;
   sharedFiles: number;
   starredFiles: number;
 }
@@ -201,6 +202,7 @@ export interface DashboardStats {
     totalStorageLimit: number;
     storagePercentage: number;
     duplicateFiles: number;
+    duplicateSize: number;
     sharedFiles: number;
     starredFiles: number;
     duplicatePercentage: number;
@@ -209,6 +211,7 @@ export interface DashboardStats {
   fileStats: {
     totalFiles: number;
     duplicateFiles: number;
+    duplicateSize: number;
     sharedFiles: number;
     starredFiles: number;
     mimeTypeStats: string[];
