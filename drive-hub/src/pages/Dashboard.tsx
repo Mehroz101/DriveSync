@@ -5,7 +5,7 @@ import { DrivesSummary } from "@/components/dashboard/DrivesSummary";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
 import { formatBytes, formatNumber } from "@/lib/formatters";
-import type { DashboardStats, DriveAccount } from "@/types";
+import type { DashboardStats, DriveAccount, DuplicateStats } from "@/types";
 import { StatsCard } from "@/components/shared/StatsCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useDriveAccountStats } from "@/queries/drive/useDriveAccounts";
@@ -19,32 +19,38 @@ interface AggregatedStats {
   totalStorage: number;
 }
 
-function aggregateDriveStats(drives: DriveAccount[]): AggregatedStats {
-  return drives?.reduce(
+function aggregateDriveStats(drives: DriveAccount[], globalDuplicates: DuplicateStats): AggregatedStats {
+  const perDrive = drives?.reduce(
     (acc, drive) => ({
-      totalFiles: acc.totalFiles + drive?.stats?.totalFiles,
-      totalStorageUsed: acc.totalStorageUsed + drive?.storage?.usedInDrive,
+      totalFiles: acc.totalFiles + (drive?.stats?.totalFiles || 0),
+      totalStorageUsed: acc.totalStorageUsed + (drive?.storage?.usedInDrive || drive?.storage?.used || 0),
       connectedDrives: acc.connectedDrives + 1,
-      duplicateFiles: acc.duplicateFiles + drive?.stats?.duplicateFiles,
-      duplicateSpace: acc.duplicateSpace + drive?.stats?.duplicateSize,
-      totalStorage: acc.totalStorage + drive?.storage?.total,
+      totalStorage: acc.totalStorage + (drive?.storage?.total || 0),
     }),
     {
       totalFiles: 0,
       totalStorageUsed: 0,
       connectedDrives: 0,
-      duplicateFiles: 0,
-      duplicateSpace: 0,
       totalStorage: 0,
     }
-  );
+  ) || { totalFiles: 0, totalStorageUsed: 0, connectedDrives: 0, totalStorage: 0 };
+
+  // Use global duplicate stats (not summed per-drive) to avoid double-counting cross-drive duplicates
+  return {
+    ...perDrive,
+    duplicateFiles: globalDuplicates.duplicateFiles,
+    duplicateSpace: globalDuplicates.wastedSpace,
+  };
 }
 
 export default function Dashboard() {
-  const { data: drives, isLoading } = useDriveAccountStats();
-  console.log("drives",drives)
-  const aggregatedStats = drives ? aggregateDriveStats(drives) : null;
-  console.log("aggregateStats",aggregatedStats)
+  const { data: driveStatsResponse, isLoading } = useDriveAccountStats();
+  const drives = driveStatsResponse?.drives;
+  const globalDuplicates = driveStatsResponse?.globalDuplicates;
+  
+  const aggregatedStats = drives && globalDuplicates
+    ? aggregateDriveStats(drives, globalDuplicates)
+    : null;
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
       {/* Page Header */}

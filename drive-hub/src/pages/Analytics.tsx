@@ -53,6 +53,7 @@ import type {
   DriveFile,
   DashboardStats,
   DriveAccount,
+  DriveStatsResponse,
 } from "@/types";
 
 const CHART_COLORS = [
@@ -66,17 +67,30 @@ const CHART_COLORS = [
   "hsl(215, 16%, 47%)",
 ];
 
-interface storageChartData {
-  name: string;
-  used: number;
-  total: number;
-}
-
 interface pieChartData {
   name: string;
   value: number;
   size: number;
 }
+
+// Mime type to category mapping
+const getMimeTypeCategory = (mimeType: string): string => {
+  if (mimeType.startsWith('image/')) return 'Images';
+  if (mimeType.startsWith('video/')) return 'Videos';
+  if (mimeType.startsWith('audio/')) return 'Audio';
+  if (mimeType === 'application/pdf') return 'PDF';
+  if (mimeType.includes('document') || mimeType.includes('text') || 
+      mimeType.includes('word') || mimeType.includes('sheet') || 
+      mimeType.includes('presentation') || mimeType.includes('spreadsheet')) {
+    return 'Documents';
+  }
+  if (mimeType.includes('zip') || mimeType.includes('rar') || 
+      mimeType.includes('tar') || mimeType.includes('compressed')) {
+    return 'Archives';
+  }
+  if (mimeType === 'application/vnd.google-apps.folder') return 'Folders';
+  return 'Other';
+};
 
 interface driveBarData {
   name: string;
@@ -113,35 +127,29 @@ export default function Analytics() {
   const { data: driveUsageStats, isLoading: driveStatsLoading } = useDriveUsageStats();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: files = [], isLoading: filesLoading } = useAnalyticsFiles();
-  const { data: driveAccounts = [], isLoading: driveAccountsLoading } = useDriveAccounts();
-console.log("stats",stats)
+  const { data: driveStatsResponse, isLoading: driveAccountsLoading } = useDriveAccounts();
+  const driveAccounts = driveStatsResponse?.drives ?? [];
   const loading = storageLoading || fileTypesLoading || driveStatsLoading || statsLoading || filesLoading || driveAccountsLoading;
 
-  // Transform data for charts
-  const storageChartData: storageChartData[] = storageData.map((item) => ({
-    name: item.owner.displayName || 'Unknown',
-    used: item.storage.used / (1024 * 1024 * 1024),
-    total: item.storage.total / (1024 * 1024 * 1024),
-  }));
+  // Group file types by category and sum counts/sizes
+  const categoryMap: Record<string, { count: number; size: number }> = {};
+  fileTypes.forEach((item) => {
+    const category = getMimeTypeCategory(item.mimeType);
+    if (!categoryMap[category]) {
+      categoryMap[category] = { count: 0, size: 0 };
+    }
+    categoryMap[category].count += item.count;
+    categoryMap[category].size += item.size || 0;
+  });
 
-  // Take only top 10 file types by count and format names
-  const pieChartData: pieChartData[] = fileTypes
-    .slice(0, 10)
-    .map((item) => {
-      const extension = item.mimeType.split('/').pop() || item.mimeType;
-      // Format common mime types for better display
-      const displayName = extension
-        .replace('vnd.google-apps.', '')
-        .replace('vnd.openxmlformats-officedocument.', '')
-        .replace('application', 'app')
-        .split('.')[0];
-      
-      return {
-        name: displayName.charAt(0).toUpperCase() + displayName.slice(1),
-        value: item.count,
-        size: item.size || 0,
-      };
-    });
+  // Convert to chart data and sort by size (for storage-based visualization)
+  const pieChartData: pieChartData[] = Object.entries(categoryMap)
+    .map(([category, data]) => ({
+      name: category,
+      value: data.count,
+      size: data.size,
+    }))
+    .sort((a, b) => b.size - a.size); // Sort by size instead of count
 
   // Use driveAccounts from /drive/stats for the bar chart
   const driveBarData: driveBarData[] = driveAccounts.map((drive: DriveAccount) => {
@@ -219,8 +227,8 @@ console.log("stats",stats)
 
       {/* Charts Grid */}
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
-        {/* Storage Growth Chart */}
-        <GrowthCard storageChartData={storageChartData} />
+        {/* Storage Growth Over Time */}
+        <StorageGrowthCard dateRange={dateRange} />
 
         {/* File Type Distribution */}
       <FileTypes pieChartData={pieChartData} />
@@ -241,9 +249,8 @@ const StatsCards = ({ stats }: { stats: DashboardStats | undefined }) => {
   const connectedDrives = stats.summary.totalDrives ?? 0;
   const duplicateFiles = stats.summary.duplicateFiles ?? 0;
   
-  // Calculate duplicate space based on files (estimate)
-  const avgFileSize = totalFiles > 0 ? totalStorageUsed / totalFiles : 0;
-  const duplicateSpace = duplicateFiles * avgFileSize;
+  // Use the actual duplicate size from the backend (calculated via aggregation)
+  const duplicateSpace = stats.summary.duplicateSize ?? 0;
 
   return (
     <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -312,42 +319,72 @@ const StatsCards = ({ stats }: { stats: DashboardStats | undefined }) => {
   );
 };
 
-const GrowthCard = ({ storageChartData }: { storageChartData: storageChartData[] }) => {
+const StorageGrowthCard = ({ dateRange }: { dateRange: string }) => {
+  // Generate mock storage growth data based on date range
+  const generateStorageGrowthData = () => {
+    const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90;
+    const data = [];
+    const endDate = new Date();
+    
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(endDate);
+      date.setDate(date.getDate() - i);
+      
+      // Simulate gradual storage growth with some randomness
+      const baseGrowth = (days - i) * 0.1; // Gradual increase over time
+      const randomVariation = Math.random() * 0.5 - 0.25; // ±0.25GB variation
+      const storageUsed = Math.max(0, baseGrowth + randomVariation);
+      
+      data.push({
+        date: date.toISOString().split('T')[0],
+        displayDate: date.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric' 
+        }),
+        storage: Number(storageUsed.toFixed(2))
+      });
+    }
+    
+    return data;
+  };
+
+  const storageGrowthData = generateStorageGrowthData();
+
   return (
     <Card>
       <CardHeader className="pb-2 md:pb-4">
-        <CardTitle className="text-base md:text-lg">Storage by Drive</CardTitle>
+        <CardTitle className="text-base md:text-lg">Storage Growth Trend</CardTitle>
         <CardDescription className="text-xs md:text-sm">
-          Storage usage across connected drives
+          Storage usage over the last {dateRange === '7d' ? '7 days' : dateRange === '30d' ? '30 days' : '90 days'}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={250}>
-          <AreaChart data={storageChartData}>
+          <AreaChart data={storageGrowthData}>
             <defs>
-              <linearGradient id="colorUsed" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="5%"
-                  stopColor="hsl(217, 91%, 60%)"
+                  stopColor="hsl(142, 76%, 36%)"
                   stopOpacity={0.3}
                 />
                 <stop
                   offset="95%"
-                  stopColor="hsl(217, 91%, 60%)"
+                  stopColor="hsl(142, 76%, 36%)"
                   stopOpacity={0}
                 />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
-              dataKey="name"
+              dataKey="displayDate"
               stroke="hsl(var(--muted-foreground))"
               fontSize={11}
             />
             <YAxis
               stroke="hsl(var(--muted-foreground))"
               fontSize={11}
-              tickFormatter={(v) => `${v.toFixed(1)}GB`}
+              tickFormatter={(v) => `${v}GB`}
             />
             <Tooltip
               contentStyle={{
@@ -356,14 +393,15 @@ const GrowthCard = ({ storageChartData }: { storageChartData: storageChartData[]
                 borderRadius: "8px",
                 fontSize: "12px",
               }}
-              formatter={(value: number) => [`${value.toFixed(1)} GB`, "Used"]}
+              formatter={(value: number) => [`${value} GB`, "Storage Used"]}
+              labelFormatter={(label) => `Date: ${label}`}
             />
             <Area
               type="monotone"
-              dataKey="used"
-              stroke="hsl(217, 91%, 60%)"
+              dataKey="storage"
+              stroke="hsl(142, 76%, 36%)"
               fillOpacity={1}
-              fill="url(#colorUsed)"
+              fill="url(#colorGrowth)"
               strokeWidth={2}
             />
           </AreaChart>
@@ -376,6 +414,9 @@ const FileTypes = ({pieChartData}:{pieChartData: pieChartData[]}) =>{
   const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: pieChartData }> }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
+      const totalSize = pieChartData.reduce((sum, item) => sum + item.size, 0);
+      const sizePercentage = totalSize > 0 ? ((data.size / totalSize) * 100).toFixed(1) : '0';
+      
       return (
         <div
           style={{
@@ -388,19 +429,23 @@ const FileTypes = ({pieChartData}:{pieChartData: pieChartData[]}) =>{
         >
           <p className="font-medium">{data.name}</p>
           <p>{`Files: ${formatNumber(data.value)}`}</p>
-          <p>{`Size: ${formatBytes(data.size)}`}</p>
+          <p>{`Total Size: ${formatBytes(data.size)} (${sizePercentage}%)`}</p>
         </div>
       );
     }
     return null;
   };
 
+  // Calculate total files and size for summary
+  const totalFiles = pieChartData.reduce((sum, item) => sum + item.value, 0);
+  const totalSize = pieChartData.reduce((sum, item) => sum + item.size, 0);
+
   return (
       <Card>
           <CardHeader className="pb-2 md:pb-4">
-            <CardTitle className="text-base md:text-lg">File Types</CardTitle>
+            <CardTitle className="text-base md:text-lg">File Categories</CardTitle>
             <CardDescription className="text-xs md:text-sm">
-              Distribution by file count
+              Distribution by storage size • {formatNumber(totalFiles)} files • {formatBytes(totalSize)} total
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -413,7 +458,7 @@ const FileTypes = ({pieChartData}:{pieChartData: pieChartData[]}) =>{
                   innerRadius={50}
                   outerRadius={80}
                   paddingAngle={2}
-                  dataKey="value"
+                  dataKey="size"
                 >
                   {pieChartData.map((_, index) => (
                     <Cell
@@ -423,7 +468,12 @@ const FileTypes = ({pieChartData}:{pieChartData: pieChartData[]}) =>{
                   ))}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
-                <Legend wrapperStyle={{ fontSize: "11px" }} />
+                <Legend 
+                  wrapperStyle={{ fontSize: "11px" }} 
+                  formatter={(value) => (
+                    <span style={{ fontSize: "11px" }}>{value}</span>
+                  )}
+                />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>

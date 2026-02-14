@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Trash2, Eye, Users, Star } from "lucide-react";
 import { formatBytes, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import type { DuplicateGroup, DriveFile, Drive } from "@/types";
+import type { DuplicateGroup, DriveFile, DriveAccount } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 import DeleteFileButton from "../common/DeleteFileButton";
 
 interface DuplicateCardProps {
   duplicate: DuplicateGroup;
-  drives?: Drive[];
+  drives?: DriveAccount[];
   onSelect?: (duplicate: DuplicateGroup) => void;
   selected?: boolean;
 }

@@ -8,6 +8,17 @@ export interface FilesApiPagination {
   totalPages: number;
 }
 
+export interface ApiFileResponse {
+  success: boolean;
+  data?: DriveFile[];
+  meta?: {
+    page?: number;
+    pageSize?: number;
+    total?: number;
+    hasMore?: boolean;
+  };
+}
+
 export type FilesApiResponse =
   | DriveFile[]
   | { files: DriveFile[]; pagination: FilesApiPagination };
@@ -40,8 +51,7 @@ export const allDrivesFiles = async (
 ): Promise<FilesApiResponse> => {
   const { mimeTypes, ...params } = query;
 
-  
-  const response = await apiClient.post<FilesApiResponse>(
+  const response = await apiClient.post<ApiFileResponse | DriveFile[]>(
     "/file/get-all-files",
     { mimeTypes },
     {
@@ -51,21 +61,79 @@ export const allDrivesFiles = async (
     }
   );
 
-  const data = response.data as FilesApiResponse;
+  const data = response.data as unknown;
 
-  // Backend may return { files, pagination } or just files array
-  if (Array.isArray(data)) return data;
-  return data && "files" in data
-    ? { files: data.files, pagination: data.pagination }
-    : data;
+  // New standardized response: { success: true, data: DriveFile[], meta: {...} }
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    'success' in data &&
+    (data as ApiFileResponse).success &&
+    'data' in data &&
+    Array.isArray((data as ApiFileResponse).data)
+  ) {
+    return {
+      files: (data as ApiFileResponse).data || [],
+      pagination: {
+        page: (data as ApiFileResponse).meta?.page ?? 1,
+        limit: (data as ApiFileResponse).meta?.pageSize ?? 25,
+        totalFiles: (data as ApiFileResponse).meta?.total ?? 0,
+        totalPages: Math.ceil(((data as ApiFileResponse).meta?.total ?? 0) / ((data as ApiFileResponse).meta?.pageSize ?? 25)),
+      },
+    };
+  }
+
+  // Array format fallback
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  // Old format fallback: { files: DriveFile[], pagination: ... }
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    'files' in data &&
+    Array.isArray((data as { files: DriveFile[] }).files)
+  ) {
+    return data as { files: DriveFile[]; pagination: FilesApiPagination };
+  }
+
+  return [];
 };
 
 export const allDrivesFilesSync = async (): Promise<DriveFile[]> => {
   try {
-    const response = await apiClient.post("/file/get-all-files-sync");
-    return response.data.files;
+    const response = await apiClient.post<ApiFileResponse | { files: DriveFile[] }>(
+      "/file/get-all-files-sync"
+    );
+    const data = response.data as unknown;
+    
+    // New standardized response: { success: true, data: { files: [], syncResults: {...} } }
+    if (
+      typeof data === 'object' &&
+      data !== null &&
+      'success' in data &&
+      (data as ApiFileResponse).success &&
+      'data' in data
+    ) {
+      const fileData = (data as ApiFileResponse).data;
+      return Array.isArray(fileData) ? fileData : [];
+    }
+    
+    // Old format: { files: DriveFile[] }
+    if (
+      typeof data === 'object' &&
+      data !== null &&
+      'files' in data &&
+      Array.isArray((data as { files: DriveFile[] }).files)
+    ) {
+      return (data as { files: DriveFile[] }).files;
+    }
+    
+    return [];
   } catch (error) {
-    console.log(error);
+    console.error("Failed to sync all drives files:", error);
+    return [];
   }
 };
 
@@ -81,11 +149,12 @@ export const deleteFilesAPI = async (
   data: { fileId: string; driveId: string }[]
 ): Promise<DeleteFilesResponse> => {
   try {
-    const response = await apiClient.post<DeleteFilesResponse>("/file/delete-files", data);
-    // Return the backend's full response so callers can show details (deletedCount, failedFiles)
-    return response.data;
+    const response = await apiClient.post<{ success: boolean; data?: DeleteFilesResponse } | DeleteFilesResponse>("/file/delete-files", data);
+    // New standardized response: { success: true, data: DeleteFilesResponse }
+    const responseData = response.data as { success: boolean; data?: DeleteFilesResponse } | DeleteFilesResponse;
+    return 'data' in responseData && responseData.data ? responseData.data : responseData;
   } catch (error: unknown) {
-    console.log(error);
+    console.error("Failed to delete files:", error);
     const message = error instanceof Error ? error.message : "Request failed";
     return { success: false, error: message };
   }
@@ -95,10 +164,25 @@ export const permanentlyDeleteTrashedFilesAPI = async (
   data: { fileId: string; driveId: string }[]
 ): Promise<DeleteFilesResponse> => {
   try {
-    const response = await apiClient.post<DeleteFilesResponse>("/file/permanently-delete-trashed", data);
-    return response.data;
+    const response = await apiClient.post<{ success: boolean; data?: DeleteFilesResponse } | DeleteFilesResponse>(
+      "/file/permanently-delete-trashed",
+      data
+    );
+    // New standardized response: { success: true, data: DeleteFilesResponse }
+    const responseData = response.data as unknown;
+    
+    if (
+      typeof responseData === 'object' &&
+      responseData !== null &&
+      'data' in responseData &&
+      (responseData as { data?: DeleteFilesResponse }).data
+    ) {
+      return (responseData as { data: DeleteFilesResponse }).data;
+    }
+    
+    return responseData as DeleteFilesResponse;
   } catch (error: unknown) {
-    console.log(error);
+    console.error("Failed to permanently delete trashed files:", error);
     const message = error instanceof Error ? error.message : "Request failed";
     return { success: false, error: message };
   }
@@ -113,21 +197,26 @@ export const uploadFileAPI = async (
   formData.append('file', file);
   formData.append('driveId', driveId);
 
-  const response = await apiClient.post<{ success: boolean; file: DriveFile }>("/file/upload", formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    onUploadProgress: (progressEvent) => {
-      if (onProgress && progressEvent.total) {
-        const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        onProgress(progress);
-      }
-    },
-  });
+  const response = await apiClient.post<{ success: boolean; data?: DriveFile; file?: DriveFile }>(
+    "/file/upload",
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(progress);
+        }
+      },
+    }
+  );
 
   if (!response.data.success) {
     throw new Error('Upload failed');
   }
 
-  return response.data.file;
+  // Extract file from standardized response: { success: true, data: DriveFile } or old format: { file: DriveFile }
+  return response.data.data || response.data.file || ({} as DriveFile);
 };

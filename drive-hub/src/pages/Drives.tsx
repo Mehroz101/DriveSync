@@ -47,7 +47,7 @@ export default function Drives() {
   const [refreshingDrive, setRefreshingDrive] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { data: drivesResponse, isLoading } = useDriveAccountStats();
-  const drives = drivesResponse || [];
+  const drives = drivesResponse?.drives || [];
 
   const { mutateAsync } = useReconnectDrive();
   const handleAddDrive = async (driveId: string) => {

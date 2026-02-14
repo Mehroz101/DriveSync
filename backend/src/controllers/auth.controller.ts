@@ -1,77 +1,93 @@
 import { Request, Response, NextFunction } from 'express';
 import { registerUser, loginUser, getUserById } from '../services/auth.service.js';
-import type { AuthenticatedRequest } from '../types/index.js';
+import type { AuthenticatedRequest, User } from '../types/index.js';
+import { sendSuccess, sendError } from '../utils/apiResponse.js';
 
-export const register = async (req: Request, res: Response, next: NextFunction) => {
+export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { email, password, name } = req.body;
 
     // Validate input
     if (!email || !password || !name) {
-      return res.status(400).json({ error: 'Email, password, and name are required' });
+      sendError(res, 'Email, password, and name are required', { statusCode: 400 });
+      return;
     }
 
     const result = await registerUser({ email, password, name });
     
-    if (result.success) {
-      res.status(201).json({
+    if (result.success && result.user && result.token) {
+      sendSuccess<{ user: User; token: string }>(res, {
+        user: result.user,
+        token: result.token
+      }, {
         message: 'User registered successfully',
-        token: result.token,
-        user: result.user
+        statusCode: 201
       });
     } else {
-      res.status(400).json({ error: result.error });
+      sendError(res, result.error || 'Registration failed', { statusCode: 400 });
     }
   } catch (error) {
     next(error);
   }
 };
 
-export const login = async (req: Request, res: Response, next: NextFunction) => {
+export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { email, password } = req.body;
-    console.log(email,password)
+    
     // Validate input
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      sendError(res, 'Email and password are required', { statusCode: 400 });
+      return;
     }
 
     const result = await loginUser({ email, password });
-      console.log(result)
-    if (result.success) {
-      res.status(200).json({
-        message: 'Login successful',
-        token: result.token,
-        data: result.user
+    
+    if (result.success && result.user && result.token) {
+      sendSuccess<{ user: User; token: string }>(res, {
+        user: result.user,
+        token: result.token
+      }, {
+        message: 'Login successful'
       });
     } else {
-      res.status(401).json({ error: result.error });
+      sendError(res, result.error || 'Invalid credentials', { statusCode: 401 });
     }
   } catch (error) {
     next(error);
   }
 };
 
-export const getProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const getProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     // Use userId from authenticated token, not from URL parameters
     const user = await getUserById(req.userId!);
     
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      sendError(res, 'User not found', { statusCode: 404 });
+      return;
     }
     
-    res.json({ user });
+    const userResponse: User = {
+      id: user._id.toString(),
+      email: user.email,
+      name: user.name || '',
+      picture: user.picture || undefined,
+      createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
+      status: 'active',
+      authType: user.authType
+    };
+    
+    sendSuccess<User>(res, userResponse);
   } catch (error) {
     next(error);
   }
 };
 
-export const logout = async (req: Request, res: Response, next: NextFunction) => {
+export const logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     // For JWT-based auth, client-side token removal is sufficient
-    // We can return a success response
-    res.json({ message: 'Logged out successfully' });
+    sendSuccess(res, undefined, { message: 'Logged out successfully' });
   } catch (error) {
     next(error);
   }

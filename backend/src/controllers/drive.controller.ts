@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import User from "../models/user.js";
 import File from "../models/file.js";
 import {
@@ -10,47 +10,57 @@ import {
   fetchDriveStatsFromDatabase,
   fetchMultipleDriveStatsFromDatabase,
 } from "../services/drive.service.js";
-import type { AuthenticatedRequest } from "../types/index.js";
+import type { AuthenticatedRequest, DriveAccount, DriveFile } from "../types/index.js";
 import { getUserById } from "../services/auth.service.js";
 import driveAccount from "../models/driveAccount.js";
 import { generateOAuthState } from "../utils/oauthState.js";
 import axios from "axios";
 import { DriveTokenExpiredError } from "../utils/driveAuthError.js";
+import { sendSuccess, sendError, parseBoolean } from '../utils/apiResponse.js';
+
 const QUOTA_REFRESH_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 export const getDriveFiles = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
     // Use userId from authenticated token, not from URL parameters
     const userId = req.userId!;
     const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) {
+      sendError(res, "User not found", { statusCode: 404 });
+      return;
+    }
 
     // Get all drive accounts for this user
     const driveAccounts = await driveAccount.find({ userId });
 
     if (driveAccounts.length === 0) {
-      return res.json({ files: [] });
+      sendSuccess<DriveFile[]>(res, []);
+      return;
     }
 
     // Fetch files from all connected drives
-    const allFiles = [];
-    for (const driveAccount of driveAccounts) {
+    const allFiles: DriveFile[] = [];
+    for (const account of driveAccounts) {
       try {
-        const files = await fetchDriveAccountFiles(driveAccount);
+        const files = await fetchDriveAccountFiles(account);
         // Add drive account info to each file
         const filesWithDriveInfo = files.map((file) => ({
           ...file,
-          driveAccountName: driveAccount.name,
-          driveAccountEmail: driveAccount.email,
-        }));
+          driveAccount: {
+            _id: account._id.toString(),
+            email: account.email,
+            name: account.name,
+            connectionStatus: account.connectionStatus
+          }
+        })) as DriveFile[];
         allFiles.push(...filesWithDriveInfo);
       } catch (error) {
         console.error(
-          `Error fetching files from drive account ${driveAccount._id}:`,
+          `Error fetching files from drive account ${account._id}:`,
           error
         );
         
@@ -63,7 +73,7 @@ export const getDriveFiles = async (
       }
     }
 
-    res.json({ files: allFiles });
+    sendSuccess<DriveFile[]>(res, allFiles);
   } catch (error) {
     next(error);
   }
@@ -73,20 +83,26 @@ export const getMyProfile = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
     // Use userId from authenticated token, not from URL parameters
     const userId = req.userId!;
     const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) {
+      sendError(res, "User not found", { statusCode: 404 });
+      return;
+    }
 
     // Get the first connected drive account for this user to fetch profile
     const driveAccountData = await driveAccount.findOne({ userId });
-    if (!driveAccountData)
-      return res.status(404).json({ error: "No drive accounts connected" });
+    if (!driveAccountData) {
+      sendError(res, "No drive accounts connected", { statusCode: 404 });
+      return;
+    }
+    
     const profile = await fetchUserProfile(driveAccountData);
-    res.json(profile);
-  } catch (err: any) {
+    sendSuccess(res, profile);
+  } catch (err) {
     console.error("Error fetching profile:", err);
     next(err);
   }
@@ -97,7 +113,7 @@ export const getAllDriveAccounts = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
     const userId = req.userId!;
 
@@ -135,29 +151,43 @@ export const getAllDriveAccounts = async (
       const total = account.total || 0;
 
       return {
-        _id: account._id,
-        name: account.name,
-        email: account.email,
-        connectionStatus: account.connectionStatus,
-        scopes: account.scopes,
-        profileImg: account.profileImg,
+        _id: account._id.toString(),
+        userId: account.userId.toString(),
+        connectionStatus: account.connectionStatus as "active" | "revoked" | "error" | "disconnected",
+        owner: {
+          displayName: account.name,
+          emailAddress: account.email,
+          name: account.name,
+          email: account.email
+        },
         storage: {
           used,
           total,
-          remaining: total ? total - used : null,
-          usagePercentage: total ? Math.round((used / total) * 100) : null,
+          usedInDrive: used,
+          usedInTrash: 0,
+          remaining: total ? total - used : 0,
         },
-
-        lastSync: account.lastSync,
-        lastFetched: account.lastFetched,
-        createdAt: account.createdAt,
-        updatedAt: account.updatedAt,
-      };
+        stats: {
+          totalFiles: 0,
+          totalFolders: 0,
+          trashedFiles: 0,
+          duplicateFiles: 0,
+          duplicateSize: 0,
+          sharedFiles: 0,
+          starredFiles: 0
+        },
+        meta: {
+          fetchedAt: account.lastFetched?.toISOString() || new Date().toISOString(),
+          source: 'google-drive-api'
+        },
+        lastSyncedAt: account.lastSync?.toISOString(),
+        createdAt: account.createdAt?.toISOString() || new Date().toISOString(),
+        updatedAt: account.updatedAt?.toISOString() || new Date().toISOString()
+      } as DriveAccount;
     });
 
-    res.json({
-      count: accounts.length,
-      accounts,
+    sendSuccess(res, accounts, {
+      meta: { total: accounts.length }
     });
   } catch (error) {
     next(error);
@@ -169,17 +199,13 @@ export const addDriveAccount = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
-    try {
-      const userId = req.userId!;
-      const state = generateOAuthState(userId);
-      const authUrl = `${process.env.BACKEND_URL}/api/auth/add-drive-account?state=${state}`;
+    const userId = req.userId!;
+    const state = generateOAuthState(userId);
+    const authUrl = `${process.env.BACKEND_URL}/api/auth/add-drive-account?state=${state}`;
 
-      res.json({ authUrl });
-    } catch (error) {
-      next(error);
-    }
+    sendSuccess(res, { authUrl });
   } catch (error) {
     next(error);
   }
@@ -190,7 +216,7 @@ export const removeDriveAccount = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
     const accountId = req.params.accountId;
 
@@ -198,14 +224,14 @@ export const removeDriveAccount = async (
     const account = await driveAccount.findById(accountId);
 
     if (!account) {
-      return res.status(404).json({ error: "Drive account not found" });
+      sendError(res, "Drive account not found", { statusCode: 404 });
+      return;
     }
 
     // Verify the account belongs to the authenticated user
     if (account.userId.toString() !== req.userId) {
-      return res.status(403).json({
-        error: "You do not have permission to remove this drive account",
-      });
+      sendError(res, "You do not have permission to remove this drive account", { statusCode: 403 });
+      return;
     }
 
     // Remove the drive account
@@ -214,7 +240,7 @@ export const removeDriveAccount = async (
     // Remove all files associated with this drive account
     await File.deleteMany({ driveAccountId: accountId });
 
-    res.json({ message: "Drive account removed successfully" });
+    sendSuccess(res, undefined, { message: "Drive account removed successfully" });
   } catch (error) {
     next(error);
   }
@@ -225,7 +251,7 @@ export const syncAllDrivesData = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
     const driveAccounts = await driveAccount.find({
       userId: req.userId!,
@@ -236,24 +262,27 @@ export const syncAllDrivesData = async (
     const filteredStats = stats
       .filter((stat) => stat.status === "fulfilled")
       .map((stat) => stat.value);
-    return res.status(200).json(filteredStats);
+    
+    sendSuccess<DriveAccount[]>(res, filteredStats);
   } catch (error) {
     next(error);
   }
 };
+
 export const syncDrive = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
     const driveId = req.params.driveId;
     const driveAccountData = await driveAccount.findById(driveId);
     if (!driveAccountData) {
-      return res.status(404).json({ error: "Drive account not found" });
+      sendError(res, "Drive account not found", { statusCode: 404 });
+      return;
     }
     const stats = await fetchDriveStats(driveAccountData);
-    return res.status(200).json(stats);
+    sendSuccess<DriveAccount>(res, stats);
   } catch (error) {
     next(error);
   }
@@ -267,51 +296,66 @@ export const getDriveAccountProfileImage = async (
     const accountId = req.query.accountId as string;
 
     if (!accountId) {
-      res.status(400).json({ error: "accountId is required" });
+      sendError(res, "accountId is required", { statusCode: 400 });
       return;
     }
 
     // Load drive account from DB
     const account = await driveAccount.findById(accountId);
     if (!account) {
-      res.status(404).json({ error: "Drive account not found" });
+      sendError(res, "Drive account not found", { statusCode: 404 });
       return;
     }
 
     // Verify the account belongs to the authenticated user
     if (account.userId.toString() !== req.userId) {
-      res.status(403).json({
-        error: "You do not have permission to access this profile image",
-      });
+      sendError(res, "You do not have permission to access this profile image", { statusCode: 403 });
       return;
     }
 
     const profileImgUrl = account.profileImg;
     if (!profileImgUrl) {
-      res.status(404).json({ error: "Profile image not available" });
+      sendError(res, "Profile image not available", { statusCode: 404 });
       return;
     }
+
+    console.log(`📸 Fetching profile image from: ${profileImgUrl.substring(0, 50)}...`);
 
     // Fetch the profile image via server-side request
     const axiosResp = await axios.get(profileImgUrl, {
       responseType: "stream",
       timeout: 15000,
+      validateStatus: (status) => status < 500,
     });
+
+    if (axiosResp.status !== 200) {
+      console.log(`❌ Failed to fetch profile image: HTTP ${axiosResp.status}`);
+      sendError(res, `Failed to fetch profile image: ${axiosResp.statusText}`, { statusCode: axiosResp.status });
+      return;
+    }
 
     // Forward content-type and cache headers
     const contentType = axiosResp.headers["content-type"] || "image/jpeg";
     res.setHeader("Content-Type", contentType);
     res.setHeader("Cache-Control", "public, max-age=86400"); // 24 hours
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+
+    console.log(`✅ Streaming profile image for account: ${accountId}`);
 
     // Pipe stream
     axiosResp.data.pipe(res);
   } catch (error) {
     console.error("getDriveAccountProfileImage error:", error);
-    res.status(500).json({ error: "Failed to fetch profile image" });
+    
+    if (error instanceof Error) {
+      sendError(res, `Failed to fetch profile image: ${error.message}`, { statusCode: 500 });
+    } else {
+      next(error);
+    }
   }
 };
 
-export const driveStats = async (req: AuthenticatedRequest, res: Response) => {
+export const driveStats = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = await getUserById(req.userId!);
     const driveAccounts = await driveAccount.find({ userId: req.userId! });
@@ -319,9 +363,10 @@ export const driveStats = async (req: AuthenticatedRequest, res: Response) => {
     // Use optimized function that calculates global duplicates once
     const stats = await fetchMultipleDriveStatsFromDatabase(driveAccounts);
     
-    return res.status(200).json(stats);
+    // Return as generic unknown type since the service returns complex aggregated data
+    sendSuccess(res, stats);
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error: "Failed to fetch drive stats" });
+    sendError(res, "Failed to fetch drive stats", { statusCode: 500 });
   }
 };

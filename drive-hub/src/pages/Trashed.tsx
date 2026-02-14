@@ -51,7 +51,6 @@ import { SkeletonTable } from "@/components/shared/SkeletonCard";
 
 import { useTrashedFiles } from "@/queries/files/useDriveFiles";
 import {
-  useDriveAccounts,
   useDriveAccountStats,
 } from "@/queries/drive/useDriveAccounts";
 
@@ -190,7 +189,8 @@ export default function Trashed() {
   /* ---------- API Hooks ---------- */
 
   const { data, isLoading, isFetching } = useTrashedFiles(queryParams);
-  const { data: drives = [] } = useDriveAccountStats();
+  const { data: drivesResponse } = useDriveAccountStats();
+  const drives = drivesResponse?.drives ?? [];
   const deleteFilesMutation = usePermanentlyDeleteTrashedFiles();
 
   const { toast } = useToast();

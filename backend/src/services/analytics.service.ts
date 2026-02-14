@@ -34,6 +34,7 @@ export class AnalyticsService {
       );
       
       const totalFiles = fileStats?.totalFiles || 0;
+      const duplicateGroups = fileStats?.duplicateGroups || 0;
       const duplicateFiles = fileStats?.duplicateFiles || 0;
       const duplicateSize = fileStats?.duplicateSize || 0;
       const sharedFiles = fileStats?.sharedFiles || 0;
@@ -50,6 +51,7 @@ export class AnalyticsService {
           totalStorageUsed,
           totalStorageLimit,
           storagePercentage: Math.round(storagePercentage * 100) / 100,
+          duplicateGroups,
           duplicateFiles,
           duplicateSize,
           sharedFiles,
@@ -132,32 +134,14 @@ export class AnalyticsService {
   }
 
   /**
-   * Get file type distribution
+   * Get file type distribution with size information
    */
   async getFileTypeDistribution(userId: string) {
     try {
       logger.info('Fetching file type distribution', { userId });
 
-      const fileStats = await this.fileRepo.getFileStats(userId);
-      
-      if (!fileStats) {
-        return [];
-      }
-
-      // Count mimeType occurrences
-      const mimeTypeCounts: Record<string, number> = {};
-      fileStats.mimeTypeStats.forEach((mimeType: string) => {
-        mimeTypeCounts[mimeType] = (mimeTypeCounts[mimeType] || 0) + 1;
-      });
-
-      // Convert to array and sort by count
-      const distribution = Object.entries(mimeTypeCounts)
-        .map(([mimeType, count]) => ({
-          mimeType,
-          count,
-          percentage: Math.round((count / fileStats.totalFiles) * 10000) / 100
-        }))
-        .sort((a, b) => b.count - a.count);
+      // Use aggregation to get both count and total size per mime type
+      const distribution = await this.fileRepo.getFileTypeDistributionWithSize(userId);
 
       logger.info('File type distribution fetched successfully', { 
         userId, 

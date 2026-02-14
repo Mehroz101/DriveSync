@@ -53,7 +53,6 @@ import {
   useAllDrivesFilesSync,
 } from "@/queries/files/useDriveFiles";
 import {
-  useDriveAccounts,
   useDriveAccountStats,
 } from "@/queries/drive/useDriveAccounts";
 
@@ -188,7 +187,8 @@ export default function FilesExplorer() {
   /* ---------- API Hooks ---------- */
 
   const { data, isLoading } = useAllDrivesFiles(queryParams);
-  const { data: drives = [] } = useDriveAccountStats();
+  const { data: drivesResponse } = useDriveAccountStats();
+  const drives = drivesResponse?.drives ?? [];
   const deleteFilesMutation = useDeleteFiles();
 
   const { refetch: refetchDriveFiles, isLoading: isSyncing } =

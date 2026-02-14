@@ -167,9 +167,6 @@ export class FileRepository {
           _id: null,
           totalFiles: { $sum: 1 },
           totalSize: { $sum: '$size' },
-          duplicateFiles: {
-            $sum: { $cond: [{ $eq: ['$isDuplicate', true] }, 1, 0] }
-          },
           sharedFiles: {
             $sum: { $cond: [{ $eq: ['$shared', true] }, 1, 0] }
           },
@@ -188,7 +185,7 @@ export class FileRepository {
 
     const result = await File.aggregate(pipeline);
     
-    // Calculate actual duplicates from files (by name+size)
+    // Calculate actual duplicates from files (by name+size), excluding folders and trashed
     const duplicateStatsPipeline: PipelineStage[] = [
       {
         $match: {
@@ -212,8 +209,12 @@ export class FileRepository {
       {
         $group: {
           _id: null,
-          duplicateCount: { $sum: 1 },
-          totalDuplicateSize: {
+          // Number of duplicate groups
+          duplicateGroups: { $sum: 1 },
+          // Total individual files in all duplicate groups
+          duplicateFiles: { $sum: "$count" },
+          // Wasted space = (count - 1) * size for each group
+          wastedSpace: {
             $sum: {
               $multiply: [{ $subtract: ["$count", 1] }, "$size"],
             },
@@ -230,15 +231,56 @@ export class FileRepository {
       return null;
     }
     
-    // Override duplicateFiles with actual count from name+size grouping
-    baseStats.duplicateFiles = duplicateResult[0]?.duplicateCount || 0;
-    baseStats.duplicateSize = duplicateResult[0]?.totalDuplicateSize || 0;
+    // Use correct duplicate counts from the aggregation
+    baseStats.duplicateGroups = duplicateResult[0]?.duplicateGroups || 0;
+    baseStats.duplicateFiles = duplicateResult[0]?.duplicateFiles || 0;
+    baseStats.duplicateSize = duplicateResult[0]?.wastedSpace || 0;
     
     return baseStats;
   }
 
   /**
-   * Get duplicate files for a user
+   * Get file type distribution with both count and total size per mime type
+   */
+  async getFileTypeDistributionWithSize(userId: string) {
+    const pipeline: PipelineStage[] = [
+      { $match: { userId: new Types.ObjectId(userId), trashed: false } },
+      {
+        $group: {
+          _id: '$mimeType',
+          count: { $sum: 1 },
+          totalSize: { $sum: '$size' }
+        }
+      },
+      {
+        $project: {
+          mimeType: '$_id',
+          count: 1,
+          size: '$totalSize',
+          _id: 0
+        }
+      },
+      { $sort: { count: -1 } }
+    ];
+
+    const result = await File.aggregate(pipeline);
+    
+    // Get total files for percentage calculation
+    const totalFiles = await File.countDocuments({ 
+      userId: new Types.ObjectId(userId), 
+      trashed: false 
+    });
+    
+    return result.map(item => ({
+      mimeType: item.mimeType,
+      count: item.count,
+      size: item.size,
+      percentage: totalFiles > 0 ? Math.round((item.count / totalFiles) * 10000) / 100 : 0
+    }));
+  }
+
+  /**
+   * Get duplicate files for a user (files that share name+size with at least one other file)
    */
   async getDuplicateFiles(userId: string, options: {
     limit?: number;
@@ -247,14 +289,41 @@ export class FileRepository {
     const { limit = 50, page = 1 } = options;
     const skip = (page - 1) * limit;
 
+    // First find which (name, size) combos are duplicated
+    const dupGroups = await File.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          trashed: false,
+          mimeType: { $ne: "application/vnd.google-apps.folder" },
+        },
+      },
+      {
+        $group: {
+          _id: { name: "$name", size: "$size" },
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $match: { count: { $gt: 1 } },
+      },
+    ]);
+
+    const dupKeys = dupGroups.map((g) => g._id);
+
+    if (dupKeys.length === 0) return [];
+
+    // Now fetch the actual files that match those (name, size) combos
     return await File.find({
       userId: new Types.ObjectId(userId),
-      isDuplicate: true
+      trashed: false,
+      mimeType: { $ne: "application/vnd.google-apps.folder" },
+      $or: dupKeys.map((k) => ({ name: k.name, size: k.size })),
     })
-    .select('name size mimeType modifiedTime driveAccountId')
-    .sort({ size: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
+      .select('name size mimeType modifiedTime driveAccountId')
+      .sort({ size: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
   }
 }

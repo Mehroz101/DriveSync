@@ -42,7 +42,6 @@ export default function FileCard({ file, drives, toggleFile, selectedFiles }: Fi
             <a href={file.webViewLink} target="_blank" rel="noreferrer"><Eye className="h-4 w-4 mr-1" /> Preview</a>
           </Button>
         </div>
-
         <div className="absolute top-2 left-2">
           <div className="flex justify-center items-center">
                       <input

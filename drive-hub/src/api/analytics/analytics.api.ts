@@ -6,7 +6,8 @@ import type {
   DriveUsageStatsResponse,
   DriveFile,
   DashboardStats,
-  DriveAccount
+  DriveAccount,
+  DriveStatsResponse
 } from "@/types";
 
 export const getStorageAnalytics = async (
@@ -47,10 +48,16 @@ export const getDriveUsageStats = async (): Promise<DriveUsageStatsResponse> => 
 };
 
 // Get drive accounts for chart data
-export const getDriveAccounts = async (): Promise<DriveAccount[]> => {
+export const getDriveAccounts = async (): Promise<DriveStatsResponse> => {
   try {
     const response = await apiClient.get('/drive/stats');
-    return response.data;
+    // New standardized response: { success: true, data: { drives: DriveAccount[], globalDuplicates: DuplicateStats } }
+    const data = response.data.data || response.data;
+    // Handle both old (array) and new (object with drives/globalDuplicates) shapes
+    if (Array.isArray(data)) {
+      return { drives: data, globalDuplicates: { duplicateGroups: 0, duplicateFiles: 0, wastedFiles: 0, wastedSpace: 0 } };
+    }
+    return data;
   } catch (error) {
     console.error(error);
     throw error;

@@ -8,6 +8,7 @@ import {
   getDriveAccounts
 } from "@/api/analytics/analytics.api";
 import { analyticsKeys } from "@/api/analytics/analytics.keys";
+import type { DriveStatsResponse } from "@/types";
 
 export const useStorageAnalytics = (startDate?: string, endDate?: string) => {
   return useQuery({
@@ -60,7 +61,7 @@ export const useAnalyticsFiles = () => {
 };
 
 export const useDriveAccounts = () => {
-  return useQuery({
+  return useQuery<DriveStatsResponse>({
     queryKey: analyticsKeys.driveAccounts(),
     queryFn: getDriveAccounts,
     staleTime: 5 * 60 * 1000, // 5 minutes

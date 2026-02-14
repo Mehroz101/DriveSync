@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { User, Bell, Shield, Monitor, HardDrive, Save } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { isAxiosError } from 'axios';
+import { User, Shield, Monitor, HardDrive, Save, Camera, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,13 +16,183 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { currentUser, userPreferences, drives } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { StorageBar } from '@/components/shared/StorageBar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { useAuth } from '@/contexts/AuthContext';
+import { useDriveAccountStats } from '@/queries/drive/useDriveAccounts';
+import { updateProfile, uploadProfilePicture, changePassword, deleteAccount } from '@/api/profile/profile.api';
+import { useToast } from '@/hooks/use-toast';
+import type { UserPreferences } from '@/types';
+
+function getErrorMessage(err: unknown): string {
+  if (isAxiosError(err)) return err.response?.data?.error || err.message;
+  if (err instanceof Error) return err.message;
+  return 'An unexpected error occurred';
+}
+
+const DEFAULT_PREFERENCES: UserPreferences = {
+  viewMode: 'list',
+  paginationSize: 25,
+  defaultDrive: 'all',
+  notifications: true,
+  autoSync: true,
+};
+
+function loadPreferences(): UserPreferences {
+  try {
+    const stored = localStorage.getItem('userPreferences');
+    if (stored) return { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) };
+  } catch { /* ignore */ }
+  return DEFAULT_PREFERENCES;
+}
+
+function savePreferences(prefs: UserPreferences) {
+  localStorage.setItem('userPreferences', JSON.stringify(prefs));
+}
 
 export default function Settings() {
-  const [preferences, setPreferences] = useState(userPreferences);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: drivesResponse } = useDriveAccountStats();
+  const drives = drivesResponse?.drives ?? [];
+
+  // Profile form
+  const [name, setName] = useState(user?.name ?? '');
+  const [email, setEmail] = useState(user?.email ?? '');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
+  // Password form
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
+  // Delete account dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  // Preferences
+  const [preferences, setPreferences] = useState<UserPreferences>(loadPreferences);
+
+  // Sync user data when it changes
+  useEffect(() => {
+    if (user) {
+      setName(user.name);
+      setEmail(user.email);
+    }
+  }, [user]);
+
+  // Persist preferences
+  useEffect(() => {
+    savePreferences(preferences);
+  }, [preferences]);
+
+  // --- Handlers ---
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      toast({ title: 'Invalid file type', description: 'Please select a JPG, PNG, GIF, or WebP image.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'Max file size is 2MB.', variant: 'destructive' });
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      await uploadProfilePicture(file);
+      toast({ title: 'Profile picture updated' });
+      // Reload to reflect new avatar
+      window.location.reload();
+    } catch (err) {
+      toast({ title: 'Upload failed', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleProfileSave = async () => {
+    if (!name.trim()) {
+      toast({ title: 'Name is required', variant: 'destructive' });
+      return;
+    }
+    setProfileSaving(true);
+    try {
+      await updateProfile({ name: name.trim(), email: email.trim() });
+      toast({ title: 'Profile updated successfully' });
+    } catch (err) {
+      toast({ title: 'Update failed', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handlePasswordChange = async () => {
+    if (!currentPassword || !newPassword) {
+      toast({ title: 'All fields are required', variant: 'destructive' });
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast({ title: 'New password must be at least 8 characters', variant: 'destructive' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: 'Passwords do not match', variant: 'destructive' });
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      await changePassword({ currentPassword, newPassword });
+      toast({ title: 'Password changed successfully' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowPasswordForm(false);
+    } catch (err) {
+      toast({ title: 'Password change failed', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      await deleteAccount(deletePassword || undefined);
+      toast({ title: 'Account deleted' });
+      logout();
+      navigate('/login');
+    } catch (err) {
+      toast({ title: 'Deletion failed', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const initials = user?.name
+    ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase()
+    : '?';
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -52,7 +224,7 @@ export default function Settings() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Profile Tab */}
+        {/* ───────── Profile Tab ───────── */}
         <TabsContent value="profile" className="space-y-6">
           <Card>
             <CardHeader>
@@ -61,40 +233,60 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-6">
-                <Avatar className="h-20 w-20">
-                  <AvatarImage src={currentUser.avatar} alt={currentUser.name} />
-                  <AvatarFallback className="text-xl">
-                    {currentUser.name.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="h-20 w-20">
+                    <AvatarImage src={user?.picture} alt={user?.name} />
+                    <AvatarFallback className="text-xl">{initials}</AvatarFallback>
+                  </Avatar>
+                  {avatarUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50">
+                      <Loader2 className="h-6 w-6 animate-spin text-white" />
+                    </div>
+                  )}
+                </div>
                 <div className="space-y-2">
-                  <Button variant="outline">Change Photo</Button>
-                  <p className="text-xs text-muted-foreground">JPG, GIF or PNG. Max size 2MB.</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    disabled={avatarUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Camera className="h-4 w-4" />
+                    Change Photo
+                  </Button>
+                  <p className="text-xs text-muted-foreground">JPG, PNG, GIF or WebP. Max size 2MB.</p>
                 </div>
               </div>
-              
+
               <Separator />
-              
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" defaultValue={currentUser.name} />
+                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue={currentUser.email} />
+                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
               </div>
-              
-              <Button className="gap-2">
-                <Save className="h-4 w-4" />
+
+              <Button className="gap-2" disabled={profileSaving} onClick={handleProfileSave}>
+                {profileSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Save Changes
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Preferences Tab */}
+        {/* ───────── Preferences Tab ───────── */}
         <TabsContent value="preferences" className="space-y-6">
           <Card>
             <CardHeader>
@@ -122,9 +314,9 @@ export default function Settings() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Items Per Page</Label>
@@ -147,9 +339,9 @@ export default function Settings() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Default Drive</Label>
@@ -161,14 +353,14 @@ export default function Settings() {
                     setPreferences({ ...preferences, defaultDrive: value })
                   }
                 >
-                  <SelectTrigger className="w-[160px]">
+                  <SelectTrigger className="w-[200px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Drives</SelectItem>
                     {drives.map((drive) => (
-                      <SelectItem key={drive.id} value={drive.id}>
-                        {drive.name}
+                      <SelectItem key={drive._id} value={drive._id}>
+                        {drive.owner?.displayName || drive.owner?.emailAddress || drive._id}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -195,9 +387,9 @@ export default function Settings() {
                   }
                 />
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Auto-Sync</Label>
@@ -214,7 +406,7 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* Drives Tab */}
+        {/* ───────── Drives Tab ───────── */}
         <TabsContent value="drives" className="space-y-6">
           <Card>
             <CardHeader>
@@ -222,26 +414,40 @@ export default function Settings() {
               <CardDescription>Manage permissions and access for connected drives.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {drives.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-8">No drives connected yet.</p>
+              )}
               {drives.map((drive) => (
-                <div key={drive.id} className="flex items-center justify-between rounded-lg border p-4">
+                <div key={drive._id} className="flex items-center justify-between rounded-lg border p-4">
                   <div className="flex items-center gap-4">
                     <Avatar>
-                      <AvatarImage src={drive.avatar} alt={drive.name} />
-                      <AvatarFallback>{drive.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                      <AvatarImage src={drive.owner?.photoLink} alt={drive.owner?.displayName} />
+                      <AvatarFallback>
+                        {(drive.owner?.displayName || drive.owner?.emailAddress || '??')
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </AvatarFallback>
                     </Avatar>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-medium">{drive.name}</p>
-                        <StatusBadge status={drive.status} />
+                        <p className="font-medium">
+                          {drive.owner?.displayName || 'Drive'}
+                        </p>
+                        <StatusBadge status={drive.connectionStatus} />
                       </div>
-                      <p className="text-sm text-muted-foreground">{drive.email}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {drive.owner?.emailAddress}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="w-32 hidden sm:block">
-                      <StorageBar used={drive.storageUsed} total={drive.storageTotal} size="sm" />
+                      <StorageBar
+                        used={drive.storage?.used ?? 0}
+                        total={drive.storage?.total ?? 1}
+                        size="sm"
+                      />
                     </div>
-                    <Button variant="outline" size="sm">Manage</Button>
                   </div>
                 </div>
               ))}
@@ -249,41 +455,74 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* Security Tab */}
+        {/* ───────── Security Tab ───────── */}
         <TabsContent value="security" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Security Settings</CardTitle>
-              <CardDescription>Manage your account security and sessions.</CardDescription>
+              <CardDescription>Manage your account security.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Two-Factor Authentication</Label>
-                  <p className="text-sm text-muted-foreground">Add an extra layer of security to your account.</p>
-                </div>
-                <Button variant="outline">Enable</Button>
-              </div>
-              
-              <Separator />
-              
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Change Password</Label>
                   <p className="text-sm text-muted-foreground">Update your account password.</p>
                 </div>
-                <Button variant="outline">Change</Button>
+                {!showPasswordForm && (
+                  <Button variant="outline" onClick={() => setShowPasswordForm(true)}>
+                    Change
+                  </Button>
+                )}
               </div>
-              
-              <Separator />
-              
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Active Sessions</Label>
-                  <p className="text-sm text-muted-foreground">Manage devices where you're logged in.</p>
+
+              {showPasswordForm && (
+                <div className="space-y-4 rounded-lg border p-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">New Password</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button disabled={passwordSaving} onClick={handlePasswordChange}>
+                      {passwordSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Update Password
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setShowPasswordForm(false);
+                        setCurrentPassword('');
+                        setNewPassword('');
+                        setConfirmPassword('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
-                <Button variant="outline">View Sessions</Button>
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -296,14 +535,52 @@ export default function Settings() {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Delete Account</Label>
-                  <p className="text-sm text-muted-foreground">Permanently delete your account and all data.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Permanently delete your account and all data.
+                  </p>
                 </div>
-                <Button variant="destructive">Delete Account</Button>
+                <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+                  Delete Account
+                </Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ───────── Delete Confirmation Dialog ───────── */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Are you absolutely sure?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. This will permanently delete your account,
+              all connected drives, and all synced file data.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="deletePassword">
+              Enter your password to confirm
+            </Label>
+            <Input
+              id="deletePassword"
+              type="password"
+              placeholder="Your password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deleting} onClick={handleDeleteAccount}>
+              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

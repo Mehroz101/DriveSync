@@ -34,9 +34,23 @@ export interface DriveStats {
   duplicateSize: number;
 }
 
+// Unified duplicate calculation stats
+export interface DuplicateStats {
+  duplicateGroups: number;  // Number of distinct (name, size) groups with count > 1
+  duplicateFiles: number;   // Total individual files in all groups
+  wastedFiles: number;      // Files that could be removed (duplicateFiles - duplicateGroups)
+  wastedSpace: number;      // Bytes recoverable = Σ (count-1) * size per group
+}
+
 export interface DriveMeta {
   fetchedAt: string; // ISO date string
   source: string; // e.g., 'google-drive-api'
+}
+
+// Response shape from /drive/stats endpoint
+export interface DriveStatsResponse {
+  drives: DriveAccount[];
+  globalDuplicates: DuplicateStats;
 }
 
 export interface DriveAccount {
@@ -226,6 +240,7 @@ export interface DashboardStats {
     totalStorageUsed: number;
     totalStorageLimit: number;
     storagePercentage: number;
+    duplicateGroups: number;
     duplicateFiles: number;
     duplicateSize: number;
     sharedFiles: number;
@@ -235,6 +250,7 @@ export interface DashboardStats {
   drives: DriveAccount[];
   fileStats: {
     totalFiles: number;
+    duplicateGroups: number;
     duplicateFiles: number;
     duplicateSize: number;
     sharedFiles: number;

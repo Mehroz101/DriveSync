@@ -6,6 +6,7 @@ import {
   getGoogleDriveAccounts,
 } from "@/api/drive/drive.api";
 import { driveKeys } from "@/api/drive/drive.keys";
+import type { DriveStatsResponse } from "@/types";
 
 export const useDriveAccounts = () => {
   return useQuery({
@@ -28,7 +29,7 @@ export const useAccountRefetchById = (driveId: string) => {
   });
 };
 export const useDriveAccountStats = () => {
-  return useQuery({
+  return useQuery<DriveStatsResponse>({
     queryKey: driveKeys.accounts(),
     queryFn: () => getAllDriveStats(),
   });

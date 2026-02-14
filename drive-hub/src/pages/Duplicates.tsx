@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
 import { useDuplicates } from "@/queries/duplicates/useDuplicates";
-import { useDriveAccounts } from "@/queries/drive/useDriveAccounts";
+import { useDriveAccountStats } from "@/queries/drive/useDriveAccounts";
 import { formatBytes, formatDate } from "@/lib/formatters";
 import type { DuplicateGroup } from "@/types";
 import DuplicateCard from "@/components/duplicates/DuplicateCard";
@@ -30,7 +30,8 @@ export default function Duplicates() {
   const [selectedDuplicates, setSelectedDuplicates] = useState<string[]>([]);
 
   const { data: duplicates = [], isLoading, error } = useDuplicates();
-  const { data: drives = [] } = useDriveAccounts();
+  const { data: drivesResponse } = useDriveAccountStats();
+  const drives = drivesResponse?.drives ?? [];
 
   const toggleDuplicate = (duplicate: DuplicateGroup) => {
     setSelectedDuplicates((prev) =>
@@ -212,7 +213,7 @@ export default function Duplicates() {
                               {file.driveAccount?.email ||
                                 drives.find(
                                   (d) => d._id === file.driveAccountId
-                                )?.email ||
+                                )?.owner?.emailAddress ||
                                 "Unknown"}
                             </span>
                           </div>

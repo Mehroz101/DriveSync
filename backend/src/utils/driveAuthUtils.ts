@@ -7,7 +7,7 @@ import { DriveAccountRevokedError, DriveTokenExpiredError } from './driveAuthErr
 export const checkAccountStatus = async (accountId: string) => {
   const account = await DriveAccount.findById(accountId);
   if (!account) {
-    throw new Error('Drive account not found');
+    throw new Error(`Drive account not found for ${accountId}`);
   }
 
   if (account.connectionStatus === 'revoked') {

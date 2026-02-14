@@ -94,7 +94,8 @@ app.use(helmet({
       connectSrc: ["'self'", "https://accounts.google.com", "https://googleapis.com"],
     },
   },
-  crossOriginEmbedderPolicy: false // Allow embedding for OAuth
+  crossOriginEmbedderPolicy: false, // Allow embedding for OAuth
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow cross-origin image loading (thumbnails, profile images)
 }));
 
 // Compression middleware

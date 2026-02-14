@@ -53,9 +53,12 @@ export const registerUser = async (userData: RegisterData): Promise<AuthResult> 
       success: true,
       token,
       user: {
-        _id: newUser._id,
+        id: newUser._id.toString(),
         email: newUser.email,
-        name: newUser.name,
+        name: newUser.name || '',
+        createdAt: newUser.createdAt?.toISOString() || new Date().toISOString(),
+        status: 'active',
+        authType: newUser.authType
       },
     };
   } catch (error: any) {
@@ -94,9 +97,12 @@ export const loginUser = async (credentials: LoginCredentials): Promise<AuthResu
       success: true,
       token,
       user: {
-        _id: user._id,
+        id: user._id.toString(),
         email: user.email,
-        name: user.name,
+        name: user.name || '',
+        createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
+        status: 'active',
+        authType: user.authType
       },
     };
   } catch (error: any) {

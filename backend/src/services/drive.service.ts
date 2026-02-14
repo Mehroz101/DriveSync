@@ -490,9 +490,47 @@ const fetchAllFiles = async (driveAccount: any) => {
   return files;
 };
 
+// ============================================================
+// DUPLICATE CALCULATION LOGIC
+// ============================================================
+//
+// Definitions:
+//   "Duplicate Group" = 2+ non-trashed, non-folder files sharing the same (name, size)
+//                       across ALL of the user's drives.
+//
+//   Global stats
+//     duplicateGroups  – number of distinct duplicate groups
+//     duplicateFiles   – total individual files that belong to any group
+//                        (e.g. 3 copies of "a.pdf" = 3 duplicate files)
+//     wastedFiles      – files that could be removed, keeping one per group
+//                        = duplicateFiles – duplicateGroups
+//     wastedSpace      – bytes recoverable = Σ (count-1)*size per group
+//
+//   Per-drive stats
+//     duplicateFiles   – files in THIS drive that belong to a global dup group
+//     wastedFiles      – extra copies in THIS drive (within-drive duplicates only)
+//                        = Σ max(0, countInThisDrive - 1) per group
+//     wastedSpace      – bytes recoverable from this drive
+//                        = Σ max(0, countInThisDrive - 1) * size per group
+// ============================================================
+
+interface GlobalDuplicate {
+  _id: { name: string; size: number };
+  count: number;
+  size: number;
+  driveIds: mongoose.Types.ObjectId[];
+  filesByDrive: { driveId: mongoose.Types.ObjectId; count: number }[];
+}
+
+interface DuplicateStats {
+  duplicateGroups: number;
+  duplicateFiles: number;
+  wastedFiles: number;
+  wastedSpace: number;
+}
+
 // Helper function to calculate duplicates across ALL user files (global)
-// Returns duplicate groups with their name, size, and which drives they appear in
-const calculateGlobalDuplicates = async (userId: any) => {
+const calculateGlobalDuplicates = async (userId: string | mongoose.Types.ObjectId): Promise<GlobalDuplicate[]> => {
   try {
     const pipeline: PipelineStage[] = [
       {
@@ -507,80 +545,88 @@ const calculateGlobalDuplicates = async (userId: any) => {
           _id: { name: "$name", size: "$size" },
           count: { $sum: 1 },
           size: { $first: "$size" },
-          driveIds: { $addToSet: "$driveAccountId" }, // Collect all drives this file appears in
+          driveIds: { $addToSet: "$driveAccountId" },
+          filesByDrive: {
+            $push: { driveId: "$driveAccountId" },
+          },
         },
       },
       {
         $match: {
-          count: { $gt: 1 }, // Only duplicates
+          count: { $gt: 1 },
         },
       },
     ];
 
-    const result = await File.aggregate(pipeline);
-    return result;
+    const rawGroups = await File.aggregate(pipeline);
+
+    // Post-process to count files per drive within each group
+    return rawGroups.map((group) => {
+      const driveCounts = new Map<string, number>();
+      for (const entry of group.filesByDrive) {
+        const key = entry.driveId.toString();
+        driveCounts.set(key, (driveCounts.get(key) || 0) + 1);
+      }
+      return {
+        ...group,
+        filesByDrive: Array.from(driveCounts.entries()).map(([driveId, count]) => ({
+          driveId: new mongoose.Types.ObjectId(driveId),
+          count,
+        })),
+      };
+    });
   } catch (error) {
     console.error("Error calculating global duplicates:", error);
     return [];
   }
 };
 
-// Helper function to calculate duplicate stats for a specific drive
-// based on global duplicate detection
-const calculateDuplicatesForDrive = async (driveAccountId: any, userId: any, globalDuplicates?: any[]) => {
-  try {
-    // If global duplicates not provided, calculate them
-    if (!globalDuplicates) {
-      globalDuplicates = await calculateGlobalDuplicates(userId);
-    }
+// Summarise global duplicate stats from pre-calculated groups
+const summariseGlobalDuplicates = (globalDuplicates: GlobalDuplicate[]): DuplicateStats => {
+  let duplicateFiles = 0;
+  let wastedSpace = 0;
 
-    // Count how many files in this drive are part of duplicate groups
-    const pipeline: PipelineStage[] = [
-      {
-        $match: {
-          userId: new mongoose.Types.ObjectId(userId),
-          driveAccountId: new mongoose.Types.ObjectId(driveAccountId),
-          trashed: false,
-          mimeType: { $ne: "application/vnd.google-apps.folder" },
-        },
-      },
-      {
-        $group: {
-          _id: { name: "$name", size: "$size" },
-          count: { $sum: 1 },
-          size: { $first: "$size" },
-        },
-      },
-    ];
-
-    const driveFiles = await File.aggregate(pipeline);
-
-    // Match drive files against global duplicates
-    let duplicateCount = 0;
-    let totalDuplicateSize = 0;
-
-    for (const globalDup of globalDuplicates) {
-      const matchingFile = driveFiles.find(
-        (df) =>
-          df._id.name === globalDup._id.name &&
-          df._id.size === globalDup._id.size
-      );
-
-      if (matchingFile) {
-        duplicateCount += 1;
-        // Calculate wasted space for this drive's copies
-        totalDuplicateSize += (matchingFile.count - 1) * matchingFile.size;
-      }
-    }
-
-    return {
-      count: duplicateCount,
-      size: totalDuplicateSize,
-    };
-  } catch (error) {
-    console.error("Error calculating duplicates for drive:", error);
-    return { count: 0, size: 0 };
+  for (const group of globalDuplicates) {
+    duplicateFiles += group.count;
+    wastedSpace += (group.count - 1) * (group.size || 0);
   }
+
+  return {
+    duplicateGroups: globalDuplicates.length,
+    duplicateFiles,
+    wastedFiles: duplicateFiles - globalDuplicates.length,
+    wastedSpace,
+  };
+};
+
+// Calculate duplicate stats scoped to a single drive
+const calculateDuplicatesForDrive = (
+  driveAccountId: string | mongoose.Types.ObjectId,
+  globalDuplicates: GlobalDuplicate[]
+): DuplicateStats => {
+  const driveIdStr = driveAccountId.toString();
+  let duplicateFiles = 0;
+  let wastedFiles = 0;
+  let wastedSpace = 0;
+  let duplicateGroups = 0;
+
+  for (const group of globalDuplicates) {
+    const driveEntry = group.filesByDrive.find(
+      (e) => e.driveId.toString() === driveIdStr
+    );
+    if (!driveEntry) continue;
+
+    // This drive participates in this duplicate group
+    duplicateGroups++;
+    duplicateFiles += driveEntry.count;
+
+    // Within-drive wasted copies (if this drive has 3 copies, 2 are wasted)
+    const wastedInDrive = Math.max(0, driveEntry.count - 1);
+    wastedFiles += wastedInDrive;
+    wastedSpace += wastedInDrive * (group.size || 0);
+  }
+
+  return { duplicateGroups, duplicateFiles, wastedFiles, wastedSpace };
 };
 
 //used
@@ -613,14 +659,15 @@ export const fetchDriveStats = async (driveAccount: any) => {
     }
 
     // Calculate duplicates from database Files collection for this drive
-    const duplicateStats = await calculateDuplicatesForDrive(driveAccount._id, driveAccount.userId);
+    const globalDuplicates = await calculateGlobalDuplicates(driveAccount.userId);
+    const duplicateStats = calculateDuplicatesForDrive(driveAccount._id, globalDuplicates);
 
     await DriveAccount.findByIdAndUpdate(driveAccount._id, {
       used: about.storage.used,
       total: about.storage.total,
       lastFetched: new Date(),
       trashedFiles,
-      duplicateFiles: duplicateStats.count,
+      duplicateFiles: duplicateStats.duplicateFiles,
       totalFiles,
       totalFolders,
     });
@@ -634,8 +681,8 @@ export const fetchDriveStats = async (driveAccount: any) => {
         totalFiles,
         totalFolders,
         trashedFiles,
-        duplicateFiles: duplicateStats.count,
-        duplicateSize: duplicateStats.size,
+        duplicateFiles: duplicateStats.duplicateFiles,
+        duplicateSize: duplicateStats.wastedSpace,
       },
 
       meta: {
@@ -688,14 +735,15 @@ export const updateDriveData = async (driveAccount: any) => {
     }
 
     // Calculate duplicates from database Files collection for this drive
-    const duplicateStats = await calculateDuplicatesForDrive(driveAccount._id, driveAccount.userId);
+    const globalDuplicates2 = await calculateGlobalDuplicates(driveAccount.userId);
+    const duplicateStats = calculateDuplicatesForDrive(driveAccount._id, globalDuplicates2);
 
     await DriveAccount.findByIdAndUpdate(driveAccount._id, {
       used: about.storage.used,
       total: about.storage.total,
       lastFetched: new Date(),
       trashedFiles,
-      duplicateFiles: duplicateStats.count,
+      duplicateFiles: duplicateStats.duplicateFiles,
       totalFiles,
       totalFolders,
     });
@@ -710,8 +758,8 @@ export const updateDriveData = async (driveAccount: any) => {
         totalFiles,
         totalFolders,
         trashedFiles,
-        duplicateFiles: duplicateStats.count,
-        duplicateSize: duplicateStats.size,
+        duplicateFiles: duplicateStats.duplicateFiles,
+        duplicateSize: duplicateStats.wastedSpace,
       },
 
       meta: {
@@ -739,8 +787,9 @@ export const fetchDriveStatsFromDatabase = async (driveAccount: any) => {
     if (!account) return;
     
     // Calculate duplicates from Files collection
-    const duplicateStats = await calculateDuplicatesForDrive(account._id, account.userId);
-    console.log(duplicateStats)
+    const globalDuplicates = await calculateGlobalDuplicates(account.userId);
+    const duplicateStats = calculateDuplicatesForDrive(account._id, globalDuplicates);
+    
     const res = {
       _id: account._id,
       connectionStatus: account.connectionStatus,
@@ -761,8 +810,8 @@ export const fetchDriveStatsFromDatabase = async (driveAccount: any) => {
         totalFiles: account.totalFiles,
         totalFolders: account.totalFolders,
         trashedFiles: account.trashedFiles,
-        duplicateFiles: duplicateStats.count,
-        duplicateSize: duplicateStats.size,
+        duplicateFiles: duplicateStats.duplicateFiles,
+        duplicateSize: duplicateStats.wastedSpace,
       },
       meta: {
         fetchedAt: account.lastFetched,
@@ -780,7 +829,7 @@ export const fetchDriveStatsFromDatabase = async (driveAccount: any) => {
 export const fetchMultipleDriveStatsFromDatabase = async (driveAccounts: any[]) => {
   try {
     if (!driveAccounts || driveAccounts.length === 0) {
-      return [];
+      return { drives: [], globalDuplicates: { duplicateGroups: 0, duplicateFiles: 0, wastedFiles: 0, wastedSpace: 0 } };
     }
 
     // Get userId from first account (all should have same userId)
@@ -789,7 +838,8 @@ export const fetchMultipleDriveStatsFromDatabase = async (driveAccounts: any[]) 
     // Calculate global duplicates once for all drives
     console.log('🔍 Calculating global duplicates for user:', userId);
     const globalDuplicates = await calculateGlobalDuplicates(userId);
-    console.log(`✅ Found ${globalDuplicates.length} duplicate groups globally`);
+    const globalStats = summariseGlobalDuplicates(globalDuplicates);
+    console.log(`✅ Found ${globalDuplicates.length} duplicate groups, ${globalStats.duplicateFiles} duplicate files, ${globalStats.wastedSpace} bytes wasted`);
 
     // Process each drive with the shared global duplicates
     const results = await Promise.all(
@@ -799,9 +849,8 @@ export const fetchMultipleDriveStatsFromDatabase = async (driveAccounts: any[]) 
           if (!account) return null;
           
           // Calculate duplicates for this specific drive using global duplicates
-          const duplicateStats = await calculateDuplicatesForDrive(
+          const duplicateStats = calculateDuplicatesForDrive(
             account._id, 
-            account.userId, 
             globalDuplicates
           );
           
@@ -825,8 +874,8 @@ export const fetchMultipleDriveStatsFromDatabase = async (driveAccounts: any[]) 
               totalFiles: account.totalFiles,
               totalFolders: account.totalFolders,
               trashedFiles: account.trashedFiles,
-              duplicateFiles: duplicateStats.count,
-              duplicateSize: duplicateStats.size,
+              duplicateFiles: duplicateStats.duplicateFiles,
+              duplicateSize: duplicateStats.wastedSpace,
             },
             meta: {
               fetchedAt: account.lastFetched,
@@ -840,11 +889,13 @@ export const fetchMultipleDriveStatsFromDatabase = async (driveAccounts: any[]) 
       })
     );
 
-    // Filter out null results
-    return results.filter((result) => result !== null);
+    return {
+      drives: results.filter((result) => result !== null),
+      globalDuplicates: globalStats,
+    };
   } catch (error) {
     console.error("Failed to fetch multiple drive stats from database:", error);
-    return [];
+    return { drives: [], globalDuplicates: { duplicateGroups: 0, duplicateFiles: 0, wastedFiles: 0, wastedSpace: 0 } };
   }
 };
 

@@ -53,7 +53,8 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: drives = [] } = useDriveAccountStats();
+  const { data: drivesResponse } = useDriveAccountStats();
+  const drives = drivesResponse?.drives ?? [];
   const { toast } = useToast();
   const queryClient = useQueryClient();
 

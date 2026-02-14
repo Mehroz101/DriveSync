@@ -9,8 +9,7 @@ import {
 } from "lucide-react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState, AppDispatch } from "@/store/store";
-import { toggleDriveSelection, setSearchQuery, setIsRefreshing } from "@/store/slices/uiSlice";
-import { refreshDriveStats } from "@/store/slices/drivesSlice";
+import { toggleDriveSelection, setSearchQuery } from "@/store/slices/uiSlice";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,15 +52,19 @@ export function TopBar({
   // Get state from Redux
   const { selectedDrives, searchQuery } = useSelector((state: RootState) => state.ui);
   const drivesState = useSelector((state: RootState) => state.drives);
-  const dashboardStats = drivesState.drives;
   const drivesLoading = drivesState.loading;
   
-  const { data: drives, isFetching } = useDriveAccountStats();
+  const { data: drivesFromQuery, isFetching } = useDriveAccountStats();
   const {
     data: syncAlltDrives,
     isFetching: syncAllIsFetching,
     refetch,
   } = useDriveAccountsRefetch();
+  
+  // Extract drives array from the new { drives, globalDuplicates } response shape
+  const drivesFromQueryArray = drivesFromQuery?.drives;
+  // Use drives from React Query if available, fallback to Redux state, then fallback to empty array
+  const dashboardStats = (drivesFromQueryArray || drivesState.drives || []) as DriveAccount[];
   const handleDriveToggle = (driveId: string) => {
     dispatch(toggleDriveSelection(driveId));
     // Also notify external handler if provided
@@ -74,21 +77,23 @@ export function TopBar({
   };
 
   const handleRefresh = async () => {
-    dispatch(setIsRefreshing(true));
     try {
-      dispatch(refreshDriveStats()).unwrap().catch(() => {
-        // Error handling is done in the rejected case of the thunk
-      });
-    } finally {
-      dispatch(setIsRefreshing(false));
+      // Trigger React Query refetch which calls /drive/sync-all endpoint
+      await refetch();
+      
+      // Invalidate queries to refetch updated data with the correct query key
+      queryClient.invalidateQueries({ queryKey: ['drive', 'accounts'] });
+    } catch (error) {
+      console.error('Failed to refresh drives:', error);
     }
   };
+  
   useEffect(() => {
-    const data = drives || syncAlltDrives;
+    const data = drivesFromQueryArray || syncAlltDrives;
     if (Array.isArray(data)) {
       // Dashboard stats are now managed by Redux slice
     }
-  }, [syncAlltDrives, drives]);
+  }, [syncAlltDrives, drivesFromQueryArray]);
 
   return (
     <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 md:px-6 gap-4">
@@ -150,26 +155,32 @@ export function TopBar({
                 </div>
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
-              {dashboardStats?.map((drive) => (
-                <DropdownMenuCheckboxItem
-                  key={drive?._id}
-                  checked={selectedDrives.includes(drive?._id)}
-                  onCheckedChange={() => handleDriveToggle(drive?._id)}
-                  aria-label={`Select drive ${drive?.owner.displayName}`}
-                >
-                  <div className="flex items-center gap-2 w-full">
-                    <div
-                      className={getStatusDotClass(drive?.connectionStatus)}
-                    />
-                    <span className="flex-1 truncate">
-                      {drive?.owner.displayName}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {drive?.owner.emailAddress.split("@")[0]}
-                    </span>
-                  </div>
-                </DropdownMenuCheckboxItem>
-              ))}
+              {Array.isArray(dashboardStats) && dashboardStats.length > 0 ? (
+                dashboardStats.map((drive) => (
+                  <DropdownMenuCheckboxItem
+                    key={drive?._id}
+                    checked={selectedDrives.includes(drive?._id)}
+                    onCheckedChange={() => handleDriveToggle(drive?._id)}
+                    aria-label={`Select drive ${drive?.owner?.displayName || 'Unknown'}`}
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <div
+                        className={getStatusDotClass(drive?.connectionStatus)}
+                      />
+                      <span className="flex-1 truncate">
+                        {drive?.owner?.displayName || 'Unknown Drive'}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {drive?.owner?.emailAddress ? drive.owner.emailAddress.split("@")[0] : ''}
+                      </span>
+                    </div>
+                  </DropdownMenuCheckboxItem>
+                ))
+              ) : (
+                <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                  {isFetching || syncAllIsFetching ? 'Loading drives...' : 'No drives connected'}
+                </div>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}

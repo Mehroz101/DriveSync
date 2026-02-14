@@ -33,14 +33,6 @@ export class DriveAccountRepository {
           $addFields: {
             stats: {
               totalFiles: { $size: '$files' },
-              duplicateFiles: {
-                $size: {
-                  $filter: {
-                    input: '$files',
-                    cond: { $eq: ['$$this.isDuplicate', true] }
-                  }
-                }
-              },
               totalSize: {
                 $sum: '$files.size'
               }

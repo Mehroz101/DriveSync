@@ -42,7 +42,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const checkAuthStatus = async () => {
     try {
       const response = await apiClient.get("/profile");
-      setUser(response.data);
+      // Extract data from standardized response: { success: true, data: User }
+      setUser(response.data.data || response.data);
     } catch (error) {
       console.error("Failed to check auth status:", error);
     } finally {
@@ -52,14 +53,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = async (email: string, password: string) => {
     try {
-      console.log("login: ",email, password)
       const response = await apiClient.post("/email-auth/login", {
         email,
         password,
       });
-      console.log(response.data)
       if (response.status === 200) {
-        setUser(response.data);
+        // Extract data from standardized response: { success: true, data: User }
+        setUser(response.data.data || response.data);
       }
     } catch (error) {
       console.error("Login failed:", error);
@@ -89,7 +89,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         password,
       });
       if (response.status === 200) {
-        setUser(response.data);
+        // Extract data from standardized response: { success: true, data: User }
+        setUser(response.data.data || response.data);
       }
     } catch (error) {
       console.error("Signup failed:", error);
