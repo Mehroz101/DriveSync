@@ -37,7 +37,6 @@ export const useFolderContents = (parentId?: string, queryParams: FilesQuery = {
     staleTime: 30 * 1000,
     retry: 2,
     refetchOnWindowFocus: false,
-    enabled: parentId !== undefined, // Only fetch when we have a parentId
   });
 };
 

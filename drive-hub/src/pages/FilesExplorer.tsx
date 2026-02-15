@@ -120,8 +120,8 @@ export default function FilesExplorer() {
   // Folder navigation state
   const [folderStack, setFolderStack] = useState<{ id: string; name: string }[]>([]);
   const currentFolderId = folderStack.length > 0 ? folderStack[folderStack.length - 1].id : undefined;
-  const isBrowsingFolders = folderStack.length > 0 || (!searchValue && !selectedTags.length && selectedTypes.length === 0 && selectedSize === 'all' && selectedDatePreset === 'all');
-  const isInFolderMode = isBrowsingFolders && !searchValue;
+  // Only enter folder mode when actively browsing a folder (folderStack not empty)
+  const isInFolderMode = folderStack.length > 0;
 
   // File preview state
   const [previewFile, setPreviewFile] = useState<DriveFile | null>(null);

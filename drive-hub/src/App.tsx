@@ -75,11 +75,11 @@ const App = () => (
                     <Settings />
                   </Suspense>
                 } />
-                <Route path="/api-docs" element={
+                {/* <Route path="/api-docs" element={
                   <Suspense fallback={<div className="flex items-center justify-center h-64">Loading API docs...</div>}>
                     <ApiDocs />
                   </Suspense>
-                } />
+                } /> */}
               </Route>
               
               <Route path="*" element={<NotFound />} />
