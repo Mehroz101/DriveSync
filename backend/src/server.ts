@@ -3,9 +3,9 @@ import { Request, Response } from "express";
 import express from "express";
 import cors from "cors";
 import cookieSession from "cookie-session";
-import helmet from "helmet";
 import compression from "compression";
-import rateLimit from "express-rate-limit";
+import * as helmetModule from "helmet";
+import * as rateLimitModule from "express-rate-limit";
 import passport from "./config/passport.js";
 import { httpLogger, logger } from "./utils/logger.js";
 import { default as connectDB } from "./auth/db.js";
@@ -35,6 +35,9 @@ process.on("unhandledRejection", (reason) => {
   logger.error("UNHANDLED REJECTION:", errorMsg);
   process.exit(1);
 });
+
+const helmet = (helmetModule as any).default || helmetModule;
+const rateLimit = (rateLimitModule as any).default || rateLimitModule;
 
 const app = express();
 let server: any = null;

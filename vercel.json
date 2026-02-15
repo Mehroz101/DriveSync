@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "projects": [
+    {
+      "name": "drivesync-backend",
+      "rootDirectory": "backend"
+    },
+    {
+      "name": "drivesync-frontend",
+      "rootDirectory": "drive-hub"
+    }
+  ]
+}
