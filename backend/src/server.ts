@@ -1,71 +1,27 @@
 import dotenv from "dotenv";
 import { Request, Response } from "express";
+import express from "express";
+import cors from "cors";
+import cookieSession from "cookie-session";
+import helmet from "helmet";
+import compression from "compression";
+import rateLimit from "express-rate-limit";
+import passport from "./config/passport.js";
+import { httpLogger, logger } from "./utils/logger.js";
+import { default as connectDB } from "./auth/db.js";
+import { errorHandler } from "./middleware/error.middleware.js";
+import driveRoutes from "./routes/drive.routes.js";
+import profileRoutes from "./routes/profile.routes.js";
+import googleAuthRoutes from "./routes/auth.router.js";
+import emailAuthRoutes from "./routes/auth.routes.js";
+import fileRoutes from "./routes/file.routes.js";
+import searchRoutes from "./routes/search.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js";
+import duplicatesRoutes from "./routes/duplicates.routes.js";
+
 dotenv.config();
 
 console.log('✅ Starting server initialization...');
-
-// Wrap entire startup in try-catch to capture all errors
-async function initializeServer() {
-try {
-  console.log('📦 Loading core modules...');
-  
-  // Core imports first
-  const expressModule = await import("express");
-  const express = expressModule.default;
-  
-  const corsModule = await import("cors");
-  const cors = corsModule.default;
-  
-  const cookieSessionModule = await import("cookie-session");
-  const cookieSession = cookieSessionModule.default;
-  
-  const helmetModule = await import("helmet");
-  const helmet = helmetModule.default;
-  
-  const compressionModule = await import("compression");
-  const compression = compressionModule.default;
-  
-  const rateLimitModule = await import("express-rate-limit");
-  const rateLimit = rateLimitModule.default;
-  
-  console.log('🔧 Loading utilities...');
-  const { httpLogger, logger } = await import("./utils/logger.js");
-  const connectDBModule = await import("./auth/db.js");
-  const connectDB = connectDBModule.default;
-  
-  console.log('🔐 Loading passport config...');
-  const passportModule = await import("./config/passport.js");
-  const passport = passportModule.default;
-  
-  console.log('🛠️  Loading middleware...');
-  const { errorHandler } = await import("./middleware/error.middleware.js");
-  
-  console.log('🚏 Loading routes...');
-  const driveRoutesModule = await import("./routes/drive.routes.js");
-  const driveRoutes = driveRoutesModule.default;
-  
-  const profileRoutesModule = await import("./routes/profile.routes.js");
-  const profileRoutes = profileRoutesModule.default;
-  
-  const googleAuthRoutesModule = await import("./routes/auth.router.js");
-  const googleAuthRoutes = googleAuthRoutesModule.default;
-  
-  const emailAuthRoutesModule = await import("./routes/auth.routes.js");
-  const emailAuthRoutes = emailAuthRoutesModule.default;
-  
-  const fileRoutesModule = await import("./routes/file.routes.js");
-  const fileRoutes = fileRoutesModule.default;
-  
-  const searchRoutesModule = await import("./routes/search.routes.js");
-  const searchRoutes = searchRoutesModule.default;
-  
-  const analyticsRoutesModule = await import("./routes/analytics.routes.js");
-  const analyticsRoutes = analyticsRoutesModule.default;
-  
-  const duplicatesRoutesModule = await import("./routes/duplicates.routes.js");
-  const duplicatesRoutes = duplicatesRoutesModule.default;
-
-  console.log('🎉 All modules loaded successfully!');
 
 // Error handling for uncaught exceptions
 process.on("uncaughtException", (err) => {
@@ -250,27 +206,3 @@ process.on("SIGTERM", () => {
     process.exit(0);
   }
 });
-
-} catch (error) {
-  console.error("🚨 Fatal error during server initialization:");
-  if (error instanceof Error) {
-    console.error("   Error name:", error.name);
-    console.error("   Error message:", error.message);
-    console.error("   Stack trace:", error.stack);
-  } else {
-    console.error("   Non-Error object thrown:", error);
-    console.error("   Type:", typeof error);
-    console.error("   Constructor:", error?.constructor?.name);
-    // Try to stringify the error object
-    try {
-      console.error("   JSON:", JSON.stringify(error, null, 2));
-    } catch {
-      console.error("   Unable to stringify error object");
-    }
-  }
-  process.exit(1);
-}
-}
-
-// Start the initialization
-initializeServer();
