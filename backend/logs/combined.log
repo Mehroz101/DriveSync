@@ -2297,3 +2297,4 @@
 {"level":"info","message":"✅ Found 204 duplicate groups, 445 duplicate files, 555673252 bytes wasted","timestamp":"2026-02-15 17:01:21"}
 {"buffer":{"data":[105,117,234,2,251,148,64,80,3,239,222,18],"type":"Buffer"},"level":"info","message":"🔍 Calculating global duplicates for user:","timestamp":"2026-02-15 17:01:51"}
 {"level":"info","message":"✅ Found 204 duplicate groups, 445 duplicate files, 555673252 bytes wasted","timestamp":"2026-02-15 17:01:52"}
+{"level":"info","message":"✓ Server running on port 4000","timestamp":"2026-02-15 20:37:21"}
