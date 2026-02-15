@@ -83,6 +83,12 @@ fileSchema.index({ userId: 1, driveAccountId: 1 });
 // Prevent duplicates across drives
 fileSchema.index({ googleFileId: 1, driveAccountId: 1 }, { unique: true });
 
+// Duplicate detection (name+size grouping)
+fileSchema.index({ userId: 1, trashed: 1, name: 1, size: 1 });
+
+// Folder navigation (parent lookup)
+fileSchema.index({ userId: 1, parents: 1 });
+
 // Text search optimization
 fileSchema.index(
   { name: "text", description: "text" },

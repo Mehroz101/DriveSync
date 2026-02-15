@@ -4,6 +4,8 @@ import { ApiError, ErrorCode } from "../utils/apiError.js";
 import type { AuthenticatedRequest, User as UserType } from "../types/index.js";
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
 import cloudinary from '../config/cloudinary.js';
+import { logger } from '../utils/logger.js';
+import { validatePasswordStrength } from '../utils/validation.js';
 
 export const getProfile = async (
   req: AuthenticatedRequest,
@@ -152,7 +154,7 @@ export const uploadProfilePicture = async (
 
     sendSuccess<UserType>(res, userResponse, { message: 'Profile picture updated successfully' });
   } catch (error) {
-    console.error('Upload profile picture error:', error);
+    logger.error('Upload profile picture error', { error: (error as Error).message });
     next(error);
   }
 };
@@ -171,8 +173,9 @@ export const changePassword = async (
       return;
     }
 
-    if (newPassword.length < 8) {
-      sendError(res, "New password must be at least 8 characters", { statusCode: 400 });
+    const passwordCheck = validatePasswordStrength(newPassword);
+    if (!passwordCheck.valid) {
+      sendError(res, passwordCheck.error!, { statusCode: 400 });
       return;
     }
 

@@ -7,7 +7,9 @@ import mongoose, { PipelineStage } from "mongoose";
 import { handleTokenError, isAuthError } from "../utils/driveAuthUtils.js";
 import { DriveTokenExpiredError } from "../utils/driveAuthError.js";
 import type { DashboardStats } from "../types/index.js";
-
+import { Types } from 'mongoose';
+import { logger } from "../utils/logger.js";
+import { sanitizeForLogging } from "../utils/logSanitizer.js";
 interface FileItem {
   fileId: string;
   driveId: string;
@@ -173,7 +175,6 @@ export const fetchUserFilesService = async ({
   };
 };
 
-import { Types } from 'mongoose';
 
 interface DriveAccountIntf {
   _id: Types.ObjectId | string;
@@ -188,8 +189,7 @@ export const fetchDriveAccountFiles = async (driveAccount: DriveAccountIntf) => 
     const auth = await refreshAccessToken(driveAccount);
     const drive = google.drive({ version: "v3", auth });
 
-    console.log("🚀 Sync started →", driveAccount.email);
-
+    logger.info("🚀 Sync started →", driveAccount.email);
     interface GoogleFile {
       id?: string | null;
       name?: string | null;
@@ -232,7 +232,7 @@ export const fetchDriveAccountFiles = async (driveAccount: DriveAccountIntf) => 
 
       nextPageToken = response.data.nextPageToken ?? undefined;
     } while (nextPageToken);
-    console.log(`✅ Files fetched → ${files.length}`);
+    logger.info(`✅ Files fetched → ${files.length}`);
 
     // Normalize EXACTLY to your File schema
     return files.map((file) => ({
@@ -270,11 +270,11 @@ export const fetchDriveAccountFiles = async (driveAccount: DriveAccountIntf) => 
       description: file.description || "",
     }));
   } catch (error) {
-    console.error(`❌ Error fetching files for account ${driveAccount.email}:`, (error as Error).message);
+    logger.error(`❌ Error fetching files for account ${driveAccount.email}:`, (error as Error).message);
     
     // Use centralized auth error handling
     if (isAuthError(error as Error)) {
-      console.error(`❌ Auth error for account ${driveAccount.email}: ${(error as Error).message}`);
+      logger.error(`❌ Auth error for account ${driveAccount.email}: ${(error as Error).message}`);
       
       // Mark account as revoked
       await DriveAccount.findByIdAndUpdate(driveAccount._id, {
@@ -293,7 +293,7 @@ export const fetchDriveAccountFiles = async (driveAccount: DriveAccountIntf) => 
 
 //used
 export const fetchUserProfile = async (driveAccount: any) => {
-  console.log("=============Fetching user profile=============");
+    logger.info('Fetching user profile', { email: driveAccount.email });
   
   try {
     const auth = await refreshAccessToken(driveAccount);
@@ -301,7 +301,7 @@ export const fetchUserProfile = async (driveAccount: any) => {
     const profileResponse = await oauth2.userinfo.get();
     const profile = profileResponse.data;
     
-    console.log(driveAccount);
+    logger.info('Drive account details', { email: driveAccount.email, id: driveAccount._id });
     // Update profile in DB
     await User.findOneAndUpdate(
       { email: driveAccount.email },
@@ -324,11 +324,16 @@ export const searchDriveFiles = async (userId: string, query: string) => {
   // Use the File model to search across all files for this user
   const File = (await import("../models/file.js")).default;
 
+  // Escape special regex characters to prevent regex injection
+  const sanitizedQuery = query
+    .trim()
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
   const searchResults = await File.find({
     userId,
     $or: [
-      { name: { $regex: query, $options: "i" } },
-      { description: { $regex: query, $options: "i" } },
+      { name: { $regex: sanitizedQuery, $options: "i" } },
+      { description: { $regex: sanitizedQuery, $options: "i" } },
     ],
   }).limit(100); // Limit results
 
@@ -359,7 +364,7 @@ export const fetchDriveQuotaFromGoogle = async (driveAccount: any) => {
   } catch (error) {
     // Auth errors are handled by refreshAccessToken and will be re-thrown
     // Just log and re-throw for caller to handle
-    console.error(`Error fetching quota for ${driveAccount.email}:`, (error as Error).message);
+    logger.error(`Error fetching quota for ${driveAccount.email}:`, (error as Error).message);
     throw error;
   }
 };
@@ -375,7 +380,7 @@ const fetchDriveAbout = async (driveAccount: any) => {
         };
       }
     } catch (dbErr) {
-      console.error("Failed to load drive data from DB fallback:", dbErr);
+      logger.error("Failed to load drive data from DB fallback:", dbErr);
       // continue to attempt Google call (will fail below and be handled)
     }
   }
@@ -387,7 +392,7 @@ const fetchDriveAbout = async (driveAccount: any) => {
     const { data } = await drive.about.get({ fields: "user, storageQuota" });
 
     const quota = data.storageQuota;
-    console.log({ quota });
+    logger.info({ quota });
     return {
       user: data.user,
       storage: {
@@ -405,7 +410,7 @@ const fetchDriveAbout = async (driveAccount: any) => {
     };
   } catch (error) {
     const errorObj = error as any;
-    console.error("fetchDriveAbout error:", errorObj?.response?.data || error);
+    logger.error("fetchDriveAbout error:", errorObj?.response?.data || error);
 
     const errData = errorObj?.response?.data;
     const isInvalidGrant =
@@ -422,11 +427,11 @@ const fetchDriveAbout = async (driveAccount: any) => {
           accessToken: null,
           refreshToken: null,
         });
-        console.warn(
+        logger.warn(
           `Drive account ${driveAccount._id} marked revoked due to invalid_grant or missing tokens`
         );
       } catch (dbErr) {
-        console.error(
+        logger.error(
           "Failed to update DriveAccount status after invalid_grant:",
           dbErr
         );
@@ -442,7 +447,7 @@ const fetchDriveAbout = async (driveAccount: any) => {
           };
         }
       } catch (dbErr) {
-        console.error("DB fallback failed after invalid_grant:", dbErr);
+        logger.error("DB fallback failed after invalid_grant:", dbErr);
       }
 
       throw new Error("refresh_token_revoked");
@@ -458,7 +463,7 @@ const fetchDriveAbout = async (driveAccount: any) => {
         };
       }
     } catch (dbErr) {
-      console.error("DB fallback failed:", dbErr);
+      logger.error("DB fallback failed:", dbErr);
     }
 
     throw error;
@@ -576,7 +581,7 @@ const calculateGlobalDuplicates = async (userId: string | mongoose.Types.ObjectI
       };
     });
   } catch (error) {
-    console.error("Error calculating global duplicates:", error);
+    logger.error("Error calculating global duplicates:", error);
     return [];
   }
 };
@@ -691,13 +696,13 @@ export const fetchDriveStats = async (driveAccount: any) => {
       },
     };
   } catch (error) {
-    console.log(error);
+    logger.info(error);
     // On unexpected errors, attempt DB fallback
     try {
       const dbRes = await fetchDriveStatsFromDatabase(driveAccount);
       if (dbRes) return { ...dbRes, _id: driveAccount._id } as any;
     } catch (e) {
-      console.error("DB fallback failed in fetchDriveStats:", e);
+      logger.error("DB fallback failed in fetchDriveStats:", e);
     }
     throw error;
   }
@@ -768,13 +773,13 @@ export const updateDriveData = async (driveAccount: any) => {
       },
     };
   } catch (error) {
-    console.log(error);
+    logger.info(error);
     // On error, try database fallback
     try {
       const dbRes = await fetchDriveStatsFromDatabase(driveAccount);
       if (dbRes) return { ...dbRes, _id: driveAccount._id } as any;
     } catch (e) {
-      console.error("DB fallback failed in updateDriveData:", e);
+      logger.error("DB fallback failed in updateDriveData:", e);
     }
     throw error;
   }
@@ -820,7 +825,7 @@ export const fetchDriveStatsFromDatabase = async (driveAccount: any) => {
     };
     return res;
   } catch (error) {
-    console.error("Failed to fetch drive stats from database:", error);
+    logger.error("Failed to fetch drive stats from database:", error);
   }
 }
 
@@ -836,10 +841,10 @@ export const fetchMultipleDriveStatsFromDatabase = async (driveAccounts: any[]) 
     const userId = driveAccounts[0].userId;
     
     // Calculate global duplicates once for all drives
-    console.log('🔍 Calculating global duplicates for user:', userId);
+    logger.info('🔍 Calculating global duplicates for user:', userId);
     const globalDuplicates = await calculateGlobalDuplicates(userId);
     const globalStats = summariseGlobalDuplicates(globalDuplicates);
-    console.log(`✅ Found ${globalDuplicates.length} duplicate groups, ${globalStats.duplicateFiles} duplicate files, ${globalStats.wastedSpace} bytes wasted`);
+    logger.info(`✅ Found ${globalDuplicates.length} duplicate groups, ${globalStats.duplicateFiles} duplicate files, ${globalStats.wastedSpace} bytes wasted`);
 
     // Process each drive with the shared global duplicates
     const results = await Promise.all(
@@ -883,7 +888,7 @@ export const fetchMultipleDriveStatsFromDatabase = async (driveAccounts: any[]) 
             },
           };
         } catch (error) {
-          console.error(`Failed to fetch stats for drive ${driveAccount._id}:`, error);
+          logger.error(`Failed to fetch stats for drive ${driveAccount._id}:`, error);
           return null;
         }
       })
@@ -894,7 +899,7 @@ export const fetchMultipleDriveStatsFromDatabase = async (driveAccounts: any[]) 
       globalDuplicates: globalStats,
     };
   } catch (error) {
-    console.error("Failed to fetch multiple drive stats from database:", error);
+    logger.error("Failed to fetch multiple drive stats from database:", error);
     return { drives: [], globalDuplicates: { duplicateGroups: 0, duplicateFiles: 0, wastedFiles: 0, wastedSpace: 0 } };
   }
 };
@@ -912,8 +917,8 @@ export const deleteFilesService = async (
   userId: string, // The ID of the user requesting the delete
   data: FileItem[]
 ) => {
-  console.log("🚀 Transactional Delete Started by User:", userId);
-  console.log("Payload:", data);
+  logger.info("🚀 Transactional Delete Started by User:", userId);
+  logger.info("Payload:", data);
 
   const session = await mongoose.startSession();
   let deletedCount = 0;
@@ -923,7 +928,7 @@ export const deleteFilesService = async (
   try {
     await session.withTransaction(async () => {
       for (const item of data) {
-        console.log(`\n--- Processing: ${item.fileId} ---`);
+        logger.info(`\n--- Processing: ${item.fileId} ---`);
 
         // 1. Fetch file inside session
         const fileDoc: any = await File.findOne({
@@ -935,7 +940,7 @@ export const deleteFilesService = async (
         }).session(session);
 
         if (!fileDoc) {
-          console.warn(
+          logger.warn(
             `⚠️ File record for ${item.fileId} missing in DB for user ${userId}`
           );
           failedFiles.push({ fileId: item.fileId, reason: "db_not_found" });
@@ -946,7 +951,7 @@ export const deleteFilesService = async (
         const driveAccountId = item.driveId || fileDoc.driveAccountId;
         const account = await DriveAccount.findById(driveAccountId).lean()
         if (!account || (!account.refreshToken && !account.accessToken)) {
-          console.error(
+          logger.error(
             "❌ Missing Auth Credentials for account:",
             driveAccountId
           );
@@ -963,7 +968,7 @@ export const deleteFilesService = async (
               accessToken: null,
             });
           } catch (e) {
-            console.error('Failed to mark account revoked in DB', e);
+            logger.error('Failed to mark account revoked in DB', e);
           }
           // Still attempt DB removal to keep UI consistent
         } else {
@@ -979,11 +984,11 @@ export const deleteFilesService = async (
               supportsAllDrives: true,
             });
 
-            console.log("permissions", meta.data);
+            logger.info("permissions", meta.data);
 
             if (meta.data.ownedByMe) {
               // User owns the file, so they can trash it normally
-              console.log("➡ Action: Trashing owned file via update");
+              logger.info("➡ Action: Trashing owned file via update");
               await drive.files.update({
                 fileId: fileDoc.googleFileId,
                 supportsAllDrives: true,
@@ -993,7 +998,7 @@ export const deleteFilesService = async (
               const canRemove = meta.data.capabilities?.canRemoveMyDriveParent;
 
               if (canRemove && meta.data.parents?.length) {
-                console.log("➡ SHARED VIEWER: Removing My Drive reference");
+                logger.info("➡ SHARED VIEWER: Removing My Drive reference");
 
                 await drive.files.update({
                   fileId: fileDoc.googleFileId,
@@ -1001,10 +1006,10 @@ export const deleteFilesService = async (
                   removeParents: meta.data.parents.join(","),
                 });
               }
-              console.log("✅ Drive: Owned file moved to trash.");
+              logger.info("✅ Drive: Owned file moved to trash.");
             } else {
               // User does not own the file. Must remove their permission explicitly.
-              console.log(
+              logger.info(
                 "➡ Action: Removing shared access via permissions.delete"
               );
 
@@ -1014,7 +1019,7 @@ export const deleteFilesService = async (
               );
 
               if (userPermission && userPermission.id) {
-                console.log(
+                logger.info(
                   `DEBUG: Found permission ID ${userPermission.id} for user email.`
                 );
                 await drive.permissions.delete({
@@ -1022,21 +1027,21 @@ export const deleteFilesService = async (
                   permissionId: userPermission.id,
                   supportsAllDrives: true,
                 });
-                console.log(
+                logger.info(
                   "✅ Drive: Shared file access revoked successfully. File removed from user's view."
                 );
               } else {
-                console.warn(
+                logger.warn(
                   "ℹ️ Could not find an explicit permission ID for this user's email. File might already be effectively removed from view."
                 );
               }
             }
 
-            console.log("✅ Drive operation complete for", item.fileId);
+            logger.info("✅ Drive operation complete for", item.fileId);
           } catch (driveErr: any) {
             const status = driveErr?.code || driveErr?.response?.status;
             const message = String(driveErr?.message || driveErr?.response?.data || "");
-            console.error(
+            logger.error(
               `❌ Drive API Error [Status: ${status}]: ${message}`
             );
 
@@ -1046,12 +1051,12 @@ export const deleteFilesService = async (
                 revokedAccounts.push({ id: driveErr.accountId, email: driveErr.accountEmail });
               }
               failedFiles.push({ fileId: item.fileId, reason: "auth_revoked", details: message });
-              console.error(`🔴 Auth revoked for account ${driveErr.accountEmail}.`);
+              logger.error(`🔴 Auth revoked for account ${driveErr.accountEmail}.`);
             } 
             // Handle specific error cases without aborting the entire transaction
             else if (status === 404) {
               // File already gone — treat as success from user's perspective
-              console.warn(`ℹ️ File ${item.fileId} not found on Drive (404). Proceeding to DB cleanup.`);
+              logger.warn(`ℹ️ File ${item.fileId} not found on Drive (404). Proceeding to DB cleanup.`);
             } else if (
               status === 401 ||
               message.includes("invalid_grant") ||
@@ -1064,7 +1069,7 @@ export const deleteFilesService = async (
               }
 
               failedFiles.push({ fileId: item.fileId, reason: "auth_revoked", details: message });
-              console.error(`🔴 Auth revoked for account ${account?.email || driveAccountId}.`);
+              logger.error(`🔴 Auth revoked for account ${account?.email || driveAccountId}.`);
 
               // Persist revocation status in DB
               try {
@@ -1073,7 +1078,7 @@ export const deleteFilesService = async (
                   accessToken: null,
                 });
               } catch (e) {
-                console.error('Failed to mark account revoked in DB', e);
+                logger.error('Failed to mark account revoked in DB', e);
               }
             } else if (status === 403 || /insufficient/i.test(message)) {
               // ...existing code...
@@ -1083,7 +1088,7 @@ export const deleteFilesService = async (
               }
 
               failedFiles.push({ fileId: item.fileId, reason: "insufficient_scopes", details: message });
-              console.error(`🔒 Insufficient scopes for account ${account?.email || driveAccountId}.`);
+              logger.error(`🔒 Insufficient scopes for account ${account?.email || driveAccountId}.`);
 
               // Persist revocation/status change so UI can show reconnect
               try {
@@ -1091,7 +1096,7 @@ export const deleteFilesService = async (
                   connectionStatus: 'revoked',
                 });
               } catch (e) {
-                console.error('Failed to mark account revoked in DB', e);
+                logger.error('Failed to mark account revoked in DB', e);
               }
             } else {
               // Unknown drive error — record and continue
@@ -1111,20 +1116,20 @@ export const deleteFilesService = async (
           );
 
           deletedCount++;
-          console.log("✅ DB: Record marked trashed successfully.");
+          logger.info("✅ DB: Record marked trashed successfully.");
         } catch (dbErr: any) {
-          console.error("❌ DB error while marking file trashed:", dbErr.message || dbErr);
+          logger.error("❌ DB error while marking file trashed:", dbErr.message || dbErr);
           failedFiles.push({ fileId: item.fileId, reason: "db_error", details: dbErr.message || String(dbErr) });
         }
       }
     });
 
-    console.log(`\n🎯 SUCCESS: Transaction committed. Deleted ${deletedCount} files.`);
+    logger.info(`\n🎯 SUCCESS: Transaction committed. Deleted ${deletedCount} files.`);
     return { success: true, deletedCount, failedFiles, revokedAccounts };
   } catch (err: any) {
-    console.error("\n🔥 TRANSACTION ABORTED:", err.message);
+    logger.error("\n🔥 TRANSACTION ABORTED:", err.message);
     // Log who requested the delete and why it failed for debugging
-    console.error(
+    logger.error(
       `Failure context: User ${userId} failed to delete file ${data
         .map((i) => i.fileId)
         .join(", ")}.`
@@ -1139,7 +1144,7 @@ export const deleteFilesService = async (
     };
   } finally {
     await session.endSession();
-    console.log("🧹 Session closed");
+    logger.info("🧹 Session closed");
   }
 };
 
@@ -1147,8 +1152,8 @@ export const permanentlyDeleteTrashedFilesService = async (
   userId: string,
   data: FileItem[]
 ) => {
-  console.log("🚀 Permanently Delete Trashed Files Started by User:", userId);
-  console.log("Payload:", data);
+  logger.info("🚀 Permanently Delete Trashed Files Started by User:", userId);
+  logger.info("Payload:", data);
 
   const session = await mongoose.startSession();
   let deletedCount = 0;
@@ -1158,7 +1163,7 @@ export const permanentlyDeleteTrashedFilesService = async (
   try {
     await session.withTransaction(async () => {
       for (const item of data) {
-        console.log(`\n--- Processing: ${item.fileId} ---`);
+        logger.info(`\n--- Processing: ${item.fileId} ---`);
 
         // 1. Fetch file inside session, ensure it's trashed
         const fileDoc: any = await File.findOne({
@@ -1171,7 +1176,7 @@ export const permanentlyDeleteTrashedFilesService = async (
         }).session(session);
 
         if (!fileDoc) {
-          console.warn(
+          logger.warn(
             `⚠️ Trashed file record for ${item.fileId} missing in DB for user ${userId}`
           );
           failedFiles.push({ fileId: item.fileId, reason: "db_not_found_or_not_trashed" });
@@ -1182,7 +1187,7 @@ export const permanentlyDeleteTrashedFilesService = async (
         const driveAccountId = item.driveId || fileDoc.driveAccountId;
         const account = await DriveAccount.findById(driveAccountId).lean();
         if (!account || (!account.refreshToken && !account.accessToken)) {
-          console.error(
+          logger.error(
             "❌ Missing Auth Credentials for account:",
             driveAccountId
           );
@@ -1199,7 +1204,7 @@ export const permanentlyDeleteTrashedFilesService = async (
           const auth = await refreshAccessToken(account);
           const drive = google.drive({ version: "v3", auth });
 
-          console.log("➡ Action: Permanently deleting trashed file");
+          logger.info("➡ Action: Permanently deleting trashed file");
           await drive.files.delete({
             fileId: fileDoc.googleFileId,
             supportsAllDrives: true,
@@ -1208,10 +1213,10 @@ export const permanentlyDeleteTrashedFilesService = async (
           // 4. Remove from DB
           await File.findByIdAndDelete(fileDoc._id).session(session);
           deletedCount++;
-          console.log(`✅ Permanently deleted: ${item.fileId}`);
+          logger.info(`✅ Permanently deleted: ${item.fileId}`);
 
         } catch (driveError: any) {
-          console.error(`❌ Drive API error for ${item.fileId}:`, driveError.message);
+          logger.error(`❌ Drive API error for ${item.fileId}:`, driveError.message);
           failedFiles.push({ fileId: item.fileId, reason: driveError.message });
           continue;
         }
@@ -1220,8 +1225,8 @@ export const permanentlyDeleteTrashedFilesService = async (
 
     await session.endSession();
 
-    console.log("🎉 Permanently Delete Trashed Files Completed");
-    console.log(`Deleted: ${deletedCount}, Failed: ${failedFiles.length}`);
+    logger.info("🎉 Permanently Delete Trashed Files Completed");
+    logger.info(`Deleted: ${deletedCount}, Failed: ${failedFiles.length}`);
 
     return {
       success: true,
@@ -1232,7 +1237,7 @@ export const permanentlyDeleteTrashedFilesService = async (
 
   } catch (error) {
     await session.endSession();
-    console.error("💥 Transaction failed:", error);
+    logger.error("💥 Transaction failed:", error);
     return {
       success: false,
       error: (error as Error).message,
@@ -1262,7 +1267,7 @@ export const refreshAccessToken = async (driveAccount: any) => {
     
     return auth;
   } catch (tokenError: any) {
-    console.error('Token refresh failed:', tokenError);
+    logger.error('Token refresh failed:', tokenError);
     
     // Use centralized error handling - this will throw the appropriate error
     await handleTokenError(tokenError, driveAccount._id, driveAccount.email);

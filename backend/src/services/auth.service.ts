@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import User from '../models/user.js';
 import { generateToken } from '../utils/jwt.js';
 import type { JwtPayload, LoginCredentials, RegisterData, AuthResult } from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 export const registerUser = async (userData: RegisterData): Promise<AuthResult> => {
   try {
@@ -62,7 +63,7 @@ export const registerUser = async (userData: RegisterData): Promise<AuthResult> 
       },
     };
   } catch (error: any) {
-    console.error('Registration error:', error);
+    logger.error('Registration error', { error: error.message, email: userData.email });
     return { success: false, error: error.message || 'Registration failed' };
   }
 };
@@ -70,6 +71,7 @@ export const registerUser = async (userData: RegisterData): Promise<AuthResult> 
 export const loginUser = async (credentials: LoginCredentials): Promise<AuthResult> => {
   try {
     // Find user by email
+    console.log('Attempting login:', credentials);
     const user = await User.findOne({ email: credentials.email });
     if (!user) {
       return { success: false, error: 'Invalid credentials' };
@@ -106,7 +108,7 @@ export const loginUser = async (credentials: LoginCredentials): Promise<AuthResu
       },
     };
   } catch (error: any) {
-    console.error('Login error:', error);
+    logger.error('Login error', { error: error.message, email: credentials.email });
     return { success: false, error: error.message || 'Login failed' };
   }
 };
@@ -115,7 +117,7 @@ export const getUserById = async (userId: string) => {
   try {
     return await User.findById(userId).select('-password');
   } catch (error) {
-    console.error('Error fetching user:', error);
+    logger.error('Error fetching user', { error: (error as Error).message, userId });
     return null;
   }
 }

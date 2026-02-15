@@ -220,3 +220,59 @@ export const uploadFileAPI = async (
   // Extract file from standardized response: { success: true, data: DriveFile } or old format: { file: DriveFile }
   return response.data.data || response.data.file || ({} as DriveFile);
 };
+
+// ---- Folder Navigation APIs ----
+
+export interface FolderContentsResponse {
+  files: DriveFile[];
+  breadcrumbs?: { id: string; name: string }[];
+  pagination: FilesApiPagination;
+}
+
+export const getFolderContents = async (
+  parentId?: string,
+  query: FilesQuery = {},
+  signal?: AbortSignal
+): Promise<FolderContentsResponse> => {
+  const params: Record<string, string | number> = {
+    page: query.page ?? 1,
+    limit: query.limit ?? 50,
+  };
+  if (query.driveId) params.driveId = query.driveId;
+
+  if (parentId && parentId !== 'root') {
+    const response = await apiClient.get<{ success: boolean; data: FolderContentsResponse }>(
+      `/file/folder/${parentId}`,
+      { params, signal, timeout: 15000 }
+    );
+    return response.data.data;
+  }
+
+  // Root level
+  const response = await apiClient.get<{ success: boolean; data: DriveFile[]; meta?: { page?: number; total?: number; limit?: number; totalPages?: number } }>(
+    "/file/folder",
+    { params, signal, timeout: 15000 }
+  );
+
+  const data = response.data;
+  return {
+    files: data.data || [],
+    breadcrumbs: [],
+    pagination: {
+      page: data.meta?.page ?? 1,
+      limit: data.meta?.limit ?? 50,
+      totalFiles: data.meta?.total ?? 0,
+      totalPages: data.meta?.totalPages ?? 1,
+    },
+  };
+};
+
+/**
+ * Get the proxy URL for previewing a file (image, video, audio).
+ * This proxies through our backend to avoid Google CORS issues.
+ */
+export const getFilePreviewUrl = (googleFileId: string, accountId: string): string => {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+  const token = localStorage.getItem("token");
+  return `${baseUrl}/file/preview/${googleFileId}?accountId=${accountId}&token=${token}`;
+};

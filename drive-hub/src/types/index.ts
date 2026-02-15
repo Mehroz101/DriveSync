@@ -104,6 +104,13 @@ export interface DriveFile {
   shared?: boolean;
   starred?: boolean;
   trashed?: boolean;
+  parents?: string[];
+  isFolder?: boolean;
+  // nested drive info from $lookup
+  drive?: {
+    email?: string;
+    connectionStatus?: string;
+  };
 }
 
 export type FileType =

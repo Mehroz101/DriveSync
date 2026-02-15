@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Search,
   Upload,
@@ -15,6 +15,10 @@ import {
   Calendar,
   Filter,
   X,
+  FolderOpen,
+  ChevronRight,
+  Home,
+  ArrowLeft,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -51,6 +55,7 @@ import { SkeletonTable } from "@/components/shared/SkeletonCard";
 import {
   useAllDrivesFiles,
   useAllDrivesFilesSync,
+  useFolderContents,
 } from "@/queries/files/useDriveFiles";
 import {
   useDriveAccountStats,
@@ -73,8 +78,9 @@ import {
 
 import FilterBar from "@/components/files/FilterBar";
 import FileCard from "@/components/files/FileCard";
+import FilePreviewDialog from "@/components/files/FilePreviewDialog";
 import { useToast } from "@/hooks/use-toast";
-import type { DeleteFilesResponse } from "@/api/files/files.api";
+import type { DeleteFilesResponse, FolderContentsResponse, FilesApiResponse } from "@/api/files/files.api";
 import { useReconnectDrive } from "@/mutations/drive/useReconnectDrive";
 import { UploadDialog } from "@/components/files/UploadDialog";
 
@@ -83,6 +89,7 @@ import { UploadDialog } from "@/components/files/UploadDialog";
 ------------------------------------ */
 
 const PAGE_SIZE = 50;
+const FOLDER_MIME = "application/vnd.google-apps.folder";
 
 /* -----------------------------------
  COMPONENT
@@ -109,6 +116,43 @@ export default function FilesExplorer() {
     { driveId: string; fileId: string }[]
   >([]);
   const [page, setPage] = useState(1);
+
+  // Folder navigation state
+  const [folderStack, setFolderStack] = useState<{ id: string; name: string }[]>([]);
+  const currentFolderId = folderStack.length > 0 ? folderStack[folderStack.length - 1].id : undefined;
+  const isBrowsingFolders = folderStack.length > 0 || (!searchValue && !selectedTags.length && selectedTypes.length === 0 && selectedSize === 'all' && selectedDatePreset === 'all');
+  const isInFolderMode = isBrowsingFolders && !searchValue;
+
+  // File preview state
+  const [previewFile, setPreviewFile] = useState<DriveFile | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const openPreview = useCallback((file: DriveFile) => {
+    // Don't preview folders
+    if (file.mimeType === FOLDER_MIME) return;
+    setPreviewFile(file);
+    setPreviewOpen(true);
+  }, []);
+
+  const navigateToFolder = useCallback((file: DriveFile) => {
+    if (file.mimeType !== FOLDER_MIME || !file.googleFileId) return;
+    setFolderStack((prev) => [...prev, { id: file.googleFileId!, name: file.name }]);
+    setPage(1);
+  }, []);
+
+  const navigateBack = useCallback(() => {
+    setFolderStack((prev) => prev.slice(0, -1));
+    setPage(1);
+  }, []);
+
+  const navigateToBreadcrumb = useCallback((index: number) => {
+    if (index < 0) {
+      setFolderStack([]);
+    } else {
+      setFolderStack((prev) => prev.slice(0, index + 1));
+    }
+    setPage(1);
+  }, []);
 
   // Build mimeTypes array for the API from selectedTypes. Return undefined for "all" (no filter).
   const buildMimeFilterPayload = (types?: string[]) => {
@@ -186,7 +230,18 @@ export default function FilesExplorer() {
 
   /* ---------- API Hooks ---------- */
 
-  const { data, isLoading } = useAllDrivesFiles(queryParams);
+  // Use folder-specific endpoint when browsing folders, otherwise use the normal files endpoint
+  const { data: filesData, isLoading: isFilesLoading } = useAllDrivesFiles(queryParams);
+  
+  // Only fetch folder contents when we're actually in folder mode
+  const { data: folderData, isLoading: isFolderLoading } = useFolderContents(
+    isInFolderMode ? currentFolderId : undefined,
+    isInFolderMode ? { page, limit: PAGE_SIZE, driveId: selectedDrive !== "all" ? selectedDrive : undefined } : {},
+  );
+
+  const data = isInFolderMode ? folderData : filesData;
+  const isLoading = isInFolderMode ? isFolderLoading : isFilesLoading;
+
   const { data: drivesResponse } = useDriveAccountStats();
   const drives = drivesResponse?.drives ?? [];
   const deleteFilesMutation = useDeleteFiles();
@@ -201,20 +256,31 @@ export default function FilesExplorer() {
 
   const files = useMemo<DriveFile[]>(() => {
     if (!data) return [];
-    return Array.isArray(data) ? data : data.files ?? [];
+    // Check if it's a FolderContentsResponse with files array
+    if (typeof data === 'object' && 'files' in data && Array.isArray((data as FolderContentsResponse).files)) {
+      return (data as FolderContentsResponse).files;
+    }
+    // Otherwise it should be a DriveFile array
+    if (Array.isArray(data)) {
+      return data;
+    }
+    return [];
   }, [data]);
 
   const pagination = useMemo(() => {
-    if (!data || Array.isArray(data)) {
-      return {
-        page,
-        totalPages: 1,
-        totalFiles: files.length,
-      };
+    if (!data) {
+      return { page, totalPages: 1, totalFiles: 0 };
     }
-
-    return data.pagination;
-  }, [data, files.length, page]);
+    // Check if it's a FolderContentsResponse with pagination
+    if (typeof data === 'object' && 'pagination' in data) {
+      return (data as FolderContentsResponse).pagination;
+    }
+    // Otherwise it's an array, create minimal pagination
+    if (Array.isArray(data)) {
+      return { page, totalPages: 1, totalFiles: data.length };
+    }
+    return { page, totalPages: 1, totalFiles: 0 };
+  }, [data, page]);
 
   /* ---------- Client Filters ---------- */
 
@@ -503,6 +569,44 @@ export default function FilesExplorer() {
         </div>
       )}
 
+      {/* BREADCRUMB NAVIGATION */}
+      {folderStack.length > 0 && (
+        <div className="flex items-center gap-1 text-sm overflow-x-auto pb-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 gap-1 shrink-0"
+            onClick={() => navigateToBreadcrumb(-1)}
+          >
+            <Home className="h-3.5 w-3.5" />
+            Root
+          </Button>
+          {folderStack.map((folder, index) => (
+            <div key={folder.id} className="flex items-center gap-1 shrink-0">
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <Button
+                variant={index === folderStack.length - 1 ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 px-2 gap-1"
+                onClick={() => navigateToBreadcrumb(index)}
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                <span className="max-w-[120px] truncate">{folder.name}</span>
+              </Button>
+            </div>
+          ))}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 ml-2 shrink-0"
+            onClick={navigateBack}
+          >
+            <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+            Back
+          </Button>
+        </div>
+      )}
+
       {/* CONTENT - LIST OR GRID */}
 
       {isLoading ? (
@@ -536,7 +640,19 @@ export default function FilesExplorer() {
 
             <TableBody>
               {files.map((file) => (
-                <TableRow key={file._id} >
+                <TableRow
+                  key={file._id}
+                  className={cn(
+                    file.mimeType === FOLDER_MIME && "cursor-pointer hover:bg-muted/60"
+                  )}
+                  onDoubleClick={() => {
+                    if (file.mimeType === FOLDER_MIME) {
+                      navigateToFolder(file);
+                    } else {
+                      openPreview(file);
+                    }
+                  }}
+                >
                   <TableCell className="w-10 ">
                     <div className="flex justify-center items-center">
                       <input
@@ -552,8 +668,19 @@ export default function FilesExplorer() {
                   </TableCell>
 
                   <TableCell>
-                    <div className="flex gap-3 items-center">
-                      <img src={file.iconLink} alt="" className="h-5 w-5" />
+                    <div
+                      className="flex gap-3 items-center"
+                      onClick={() => {
+                        if (file.mimeType === FOLDER_MIME) {
+                          navigateToFolder(file);
+                        }
+                      }}
+                    >
+                      {file.mimeType === FOLDER_MIME ? (
+                        <FolderOpen className="h-5 w-5 text-blue-400 shrink-0" />
+                      ) : (
+                        <img src={file.iconLink} alt="" className="h-5 w-5" />
+                      )}
                       <div className="min-w-0 flex-1">
                         <p className="font-medium truncate">{file.name}</p>
                         {/* Tags row */}
@@ -611,22 +738,27 @@ export default function FilesExplorer() {
 
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      {/* Preview button */}
-                      <Button 
-                        size="icon" 
-                        variant="ghost" 
-                        asChild
-                        aria-label={`Preview ${file.name}`}
-                      >
-                        <a
-                          href={file.webViewLink}
-                          target="_blank"
-                          rel="noreferrer"
+                      {/* Preview button - open in-app preview for media, or Google Drive for others */}
+                      {file.mimeType !== FOLDER_MIME && (
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          onClick={() => openPreview(file)}
                           aria-label={`Preview ${file.name}`}
                         >
                           <Eye className="h-4 w-4" />
-                        </a>
-                      </Button>
+                        </Button>
+                      )}
+                      {file.mimeType === FOLDER_MIME && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => navigateToFolder(file)}
+                          aria-label={`Open folder ${file.name}`}
+                        >
+                          <FolderOpen className="h-4 w-4" />
+                        </Button>
+                      )}
 
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -729,6 +861,8 @@ export default function FilesExplorer() {
                 drives={drives}
                 toggleFile={toggleFile}
                 selectedFiles={selectedFiles}
+                openPreview={openPreview}
+                navigateToFolder={navigateToFolder}
               />
             ))}
           </div>
@@ -761,6 +895,15 @@ export default function FilesExplorer() {
             </div>
           </div>
         </>
+      )}
+
+      {/* File Preview Dialog */}
+      {previewFile && (
+        <FilePreviewDialog
+          file={previewFile}
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+        />
       )}
     </div>
   );

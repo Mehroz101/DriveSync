@@ -11,13 +11,14 @@ export const authenticateToken = async (
   next: NextFunction
 ) => {
   try {
-    // Get token from header
+    // Get token from header, cookie, or query param (for file preview proxy)
     const authHeader = (req.headers as any)['authorization'];
     const bearerToken = authHeader?.startsWith("Bearer ")
       ? authHeader.split(" ")[1]
       : null;
     const cookieToken = (req as any).cookies?.token;
-    const token = bearerToken || cookieToken;
+    const queryToken = req.query.token as string | undefined;
+    const token = bearerToken || cookieToken || queryToken;
 
     if (!token) {
       return res.status(401).json({ error: "Access token required" });
