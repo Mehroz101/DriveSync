@@ -151,6 +151,20 @@ app.use(passport.session());
 // Remove Express header for security
 app.disable('x-powered-by');
 
+// Setup routes
+app.use("/test", (req: Request, res: Response) => {
+  res.send("Server is running");
+});
+app.use("/api/email-auth", emailAuthRoutes);
+app.use("/api/auth", googleAuthRoutes);
+app.use("/api/drive", driveRoutes);
+app.use("/api/file", fileRoutes);
+app.use("/api/profile", profileRoutes);
+app.use("/api", searchRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/duplicates", duplicatesRoutes);
+app.use(errorHandler);
+
 // Connect to MongoDB and start the HTTP server
 async function startServer() {
   try {
@@ -164,25 +178,19 @@ async function startServer() {
   }
 
   try {
-    app.use("/test", (req: Request, res: Response) => {
-      res.send("Server is running");
-    });
-    app.use("/api/email-auth", emailAuthRoutes);
-    app.use("/api/auth", googleAuthRoutes);
-    app.use("/api/drive", driveRoutes);
-    app.use("/api/file", fileRoutes);
-    app.use("/api/profile", profileRoutes);
-    app.use("/api", searchRoutes);
-    app.use("/api/analytics", analyticsRoutes);
-    app.use("/api/duplicates", duplicatesRoutes);
-    app.use(errorHandler);
-
     const port = process.env.PORT || 4000;
-    server = app.listen(port, () => {
-      logger.info(`✓ Server running on port ${port}`);
-      console.log(`✓ Server running on port ${port}`);
-      console.log(`📡 Health check: http://localhost:${port}/health`);
-    });
+    
+    // Only listen if not in Vercel serverless environment
+    if (process.env.VERCEL === undefined && process.env.LAMBDA_TASK_ROOT === undefined) {
+      server = app.listen(port, () => {
+        logger.info(`✓ Server running on port ${port}`);
+        console.log(`✓ Server running on port ${port}`);
+        console.log(`📡 Health check: http://localhost:${port}/health`);
+      });
+    } else {
+      logger.info('✓ Running in serverless environment (Vercel)');
+      console.log('✓ Running in serverless environment (Vercel)');
+    }
   } catch (err) {
     console.error("🚨 Failed to start server:");
     if (err instanceof Error) {
@@ -195,7 +203,10 @@ async function startServer() {
   }
 }
 
-startServer();
+// Start server only in non-serverless environments
+if (process.env.VERCEL === undefined && process.env.LAMBDA_TASK_ROOT === undefined) {
+  startServer();
+}
 
 // Graceful shutdown
 process.on("SIGTERM", () => {
@@ -209,3 +220,6 @@ process.on("SIGTERM", () => {
     process.exit(0);
   }
 });
+
+// Export app for serverless environments (Vercel)
+export default app;
