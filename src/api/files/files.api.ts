@@ -276,3 +276,74 @@ export const getFilePreviewUrl = (googleFileId: string, accountId: string): stri
   const token = localStorage.getItem("token");
   return `${baseUrl}/file/preview/${googleFileId}?accountId=${accountId}&token=${token}`;
 };
+
+// ---- Transfer APIs ----
+
+export interface TransferFileRequest {
+  sourceFileId: string;
+  sourceDriveId: string;
+  destinationDriveId: string;
+  destinationFolderId?: string;
+}
+
+export interface TransferResult {
+  success: boolean;
+  file?: {
+    googleFileId: string;
+    name: string;
+    mimeType: string;
+    size: number;
+    webViewLink: string | null;
+    driveAccountId: string;
+  };
+  error?: string;
+  destinationQuota?: { used: number; total: number };
+}
+
+export interface BulkTransferResponse {
+  success: boolean;
+  transferred: TransferResult[];
+  failed: TransferResult[];
+  summary: { total: number; succeeded: number; failed: number };
+}
+
+export const transferFileAPI = async (
+  data: TransferFileRequest
+): Promise<TransferResult> => {
+  try {
+    const response = await apiClient.post<{ success: boolean; data?: TransferResult }>(
+      "/file/transfer",
+      data,
+      { timeout: 120000 } // 2 min for large files
+    );
+    const responseData = response.data as { success: boolean; data?: TransferResult };
+    return responseData.data || (responseData as unknown as TransferResult);
+  } catch (error: unknown) {
+    console.error("Failed to transfer file:", error);
+    const message = error instanceof Error ? error.message : "Transfer failed";
+    return { success: false, error: message };
+  }
+};
+
+export const transferBulkFilesAPI = async (
+  transfers: TransferFileRequest[]
+): Promise<BulkTransferResponse> => {
+  try {
+    const response = await apiClient.post<{ success: boolean; data?: BulkTransferResponse }>(
+      "/file/transfer-bulk",
+      { transfers },
+      { timeout: 300000 } // 5 min for bulk transfers
+    );
+    const responseData = response.data as { success: boolean; data?: BulkTransferResponse };
+    return responseData.data || (responseData as unknown as BulkTransferResponse);
+  } catch (error: unknown) {
+    console.error("Failed to bulk transfer files:", error);
+    const message = error instanceof Error ? error.message : "Bulk transfer failed";
+    return {
+      success: false,
+      transferred: [],
+      failed: [],
+      summary: { total: transfers.length, succeeded: 0, failed: transfers.length },
+    };
+  }
+};

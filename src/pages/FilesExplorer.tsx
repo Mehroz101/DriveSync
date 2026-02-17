@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Home,
   ArrowLeft,
+  Send,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { DeleteFilesResponse, FolderContentsResponse, FilesApiResponse } from "@/api/files/files.api";
 import { useReconnectDrive } from "@/mutations/drive/useReconnectDrive";
 import { UploadDialog } from "@/components/files/UploadDialog";
+import { TransferDialog } from "@/components/files/TransferDialog";
 
 /* -----------------------------------
  CONFIG
@@ -106,6 +108,8 @@ export default function FilesExplorer() {
   // multi-select types: empty array = all types
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferFiles, setTransferFiles] = useState<DriveFile[]>([]);
 
   // New filters
   const [selectedTags, setSelectedTags] = useState<string[]>([]); // shared, starred, trashed
@@ -470,7 +474,7 @@ export default function FilesExplorer() {
             {selectedFiles.length} Selected
           </span>
 
-          <Button 
+          {/* <Button 
             size="sm" 
             variant="outline" 
             onClick={downloadFiles}
@@ -478,6 +482,22 @@ export default function FilesExplorer() {
           >
             <Download className="h-4 w-4 mr-2" aria-hidden="true" />
             Download
+          </Button> */}
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const filesToTransfer = files.filter((f) =>
+                selectedFiles.some((sf) => sf.fileId === f._id)
+              );
+              setTransferFiles(filesToTransfer);
+              setTransferOpen(true);
+            }}
+            aria-label={`Transfer ${selectedFiles.length} selected files`}
+          >
+            <Send className="h-4 w-4 mr-2" aria-hidden="true" />
+            Transfer
           </Button>
 
           <DeleteFileDialog
@@ -793,6 +813,18 @@ export default function FilesExplorer() {
                             Download
                           </DropdownMenuItem>
 
+                          <DropdownMenuItem
+                            className="gap-2"
+                            aria-label={`Transfer ${file.name} to another drive`}
+                            onSelect={() => {
+                              setTransferFiles([file]);
+                              setTransferOpen(true);
+                            }}
+                          >
+                            <Send className="h-4 w-4" aria-hidden="true" />
+                            Transfer
+                          </DropdownMenuItem>
+
                           <DropdownMenuSeparator />
 
                           <DropdownMenuItem
@@ -905,6 +937,16 @@ export default function FilesExplorer() {
           onClose={() => setPreviewOpen(false)}
         />
       )}
+
+      {/* Transfer Dialog */}
+      <TransferDialog
+        open={transferOpen}
+        onClose={() => {
+          setTransferOpen(false);
+          setTransferFiles([]);
+        }}
+        files={transferFiles}
+      />
     </div>
   );
 }
