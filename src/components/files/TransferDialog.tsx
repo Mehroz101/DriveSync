@@ -168,6 +168,8 @@ export function TransferDialog({ open, onClose, files }: TransferDialogProps) {
             title: "Transfer complete",
             description: `"${file.name}" transferred successfully`,
           });
+          //remove from files
+          
         } else {
           setFileStates([{ file, status: "error", error: res.error }]);
           setTransferStatus("error");

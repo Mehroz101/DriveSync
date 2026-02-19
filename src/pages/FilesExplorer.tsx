@@ -420,10 +420,10 @@ export default function FilesExplorer() {
           </p>
         </div>
         <div className="flex gap-2">
-  <Button
+        <Button
         onClick={() => setOpen(true)}
         className="gap-2 h-10 px-4 bg-purple-600 hover:bg-purple-700 text-white shadow-md"
-      >
+        >
         <Upload className="h-4 w-4" />
         Upload Video
       </Button>
@@ -432,11 +432,12 @@ export default function FilesExplorer() {
       <UploadDialog
         open={open}
         onClose={() => setOpen(false)}
-      />          <Button
-            className="gap-2"
-            disabled={isSyncing}
-            onClick={() => refetchDriveFiles()}
-          >
+      />
+      <Button
+        className="gap-2"
+        disabled={isSyncing}
+        onClick={() => refetchDriveFiles()}
+      >
             <RefreshCw
               className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`}
             />
