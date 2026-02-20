@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { cn } from '@/lib/utils';
+import { useState, useEffect } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   HardDrive,
@@ -14,26 +14,32 @@ import {
   FileText,
   X,
   Trash2,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useIsMobile } from '@/hooks/use-mobile';
+  Lock,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface NavItem {
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  locked: boolean;
 }
 
 const navItems: NavItem[] = [
-  { title: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { title: 'Drives', href: '/drives', icon: HardDrive },
-  { title: 'Files Explorer', href: '/files', icon: FolderOpen },
-  { title: 'Trashed', href: '/trashed', icon: Trash2 },
-  { title: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { title: 'Duplicates', href: '/duplicates', icon: Copy },
-  // { title: 'Activity Log', href: '/activity', icon: Activity },
-  { title: 'Settings', href: '/settings', icon: Settings },
+  { title: "Dashboard", href: "/", icon: LayoutDashboard, locked: false },
+  { title: "Drives", href: "/drives", icon: HardDrive, locked: false },
+  { title: "Files Explorer", href: "/files", icon: FolderOpen, locked: false },
+  { title: "Trashed", href: "/trashed", icon: Trash2, locked: false },
+  { title: "Analytics", href: "/analytics", icon: BarChart3, locked: false },
+  { title: "Duplicates", href: "/duplicates", icon: Copy, locked: false },
+  { title: "Activity Log", href: "/activity", icon: Activity, locked: true },
+  { title: "Settings", href: "/settings", icon: Settings, locked: false },
   // { title: 'API Docs', href: '/api-docs', icon: FileText },
 ];
 
@@ -44,7 +50,12 @@ interface AppSidebarProps {
   onMobileClose: () => void;
 }
 
-export function AppSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: AppSidebarProps) {
+export function AppSidebar({
+  collapsed,
+  onToggle,
+  mobileOpen,
+  onMobileClose,
+}: AppSidebarProps) {
   const location = useLocation();
   const isMobile = useIsMobile();
 
@@ -91,21 +102,41 @@ export function AppSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: A
         {navItems.map((item) => {
           const isActive = location.pathname === item.href;
           const Icon = item.icon;
-
+          const isLocked = item.locked;
+          // if(item.locked)
+          //   return (
+          // <>
+          //  <Lock className={cn('h-5 w-5 flex-shrink-0', isActive && 'text-sidebar-primary')} />
+          //     {(!collapsed || isMobile) && <span>{item.title}</span>}
+          // </>
+          // )
           const linkContent = (
             <NavLink
               key={item.href}
-              to={item.href}
+              to={!isLocked && item.href}
               onClick={() => isMobile && onMobileClose()}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                 isActive
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
             >
-              <Icon className={cn('h-5 w-5 flex-shrink-0', isActive && 'text-sidebar-primary')} />
+              <Icon
+                className={cn(
+                  "h-5 w-5 flex-shrink-0",
+                  isActive && "text-sidebar-primary"
+                )}
+              />
               {(!collapsed || isMobile) && <span>{item.title}</span>}
+              {isLocked && (
+                <Lock
+                  className={cn(
+                    "h-4 w-4 flex-shrink-0",
+                    isActive && "text-sidebar-primary"
+                  )}
+                />
+              )}
             </NavLink>
           );
 
@@ -132,8 +163,8 @@ export function AppSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: A
             size="sm"
             onClick={onToggle}
             className={cn(
-              'w-full text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-              collapsed && 'justify-center'
+              "w-full text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              collapsed && "justify-center"
             )}
           >
             {collapsed ? (
@@ -164,8 +195,8 @@ export function AppSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: A
         {/* Sidebar */}
         <aside
           className={cn(
-            'fixed left-0 top-0 z-50 h-screen w-72 bg-sidebar transition-transform duration-300 ease-in-out',
-            mobileOpen ? 'translate-x-0' : '-translate-x-full'
+            "fixed left-0 top-0 z-50 h-screen w-72 bg-sidebar transition-transform duration-300 ease-in-out",
+            mobileOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
           {sidebarContent}
@@ -178,8 +209,8 @@ export function AppSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: A
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 h-screen bg-sidebar transition-all duration-300 ease-in-out',
-        collapsed ? 'w-16' : 'w-64'
+        "fixed left-0 top-0 z-40 h-screen bg-sidebar transition-all duration-300 ease-in-out",
+        collapsed ? "w-16" : "w-64"
       )}
     >
       {sidebarContent}
