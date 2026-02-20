@@ -1,7 +1,7 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { toast } from "@/components/ui/use-toast";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://drive-sync-be.vercel.app/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
 
 // Interface for structured API errors
 interface ApiError {
