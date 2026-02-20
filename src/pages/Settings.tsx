@@ -210,10 +210,10 @@ export default function Settings() {
             <User className="h-4 w-4" />
             Profile
           </TabsTrigger>
-          <TabsTrigger value="preferences" className="gap-2">
+          {/* <TabsTrigger value="preferences" className="gap-2">
             <Monitor className="h-4 w-4" />
             Preferences
-          </TabsTrigger>
+          </TabsTrigger> */}
           <TabsTrigger value="drives" className="gap-2">
             <HardDrive className="h-4 w-4" />
             Drives

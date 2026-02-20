@@ -32,9 +32,9 @@ const navItems: NavItem[] = [
   { title: 'Trashed', href: '/trashed', icon: Trash2 },
   { title: 'Analytics', href: '/analytics', icon: BarChart3 },
   { title: 'Duplicates', href: '/duplicates', icon: Copy },
-  { title: 'Activity Log', href: '/activity', icon: Activity },
+  // { title: 'Activity Log', href: '/activity', icon: Activity },
   { title: 'Settings', href: '/settings', icon: Settings },
-  { title: 'API Docs', href: '/api-docs', icon: FileText },
+  // { title: 'API Docs', href: '/api-docs', icon: FileText },
 ];
 
 interface AppSidebarProps {
