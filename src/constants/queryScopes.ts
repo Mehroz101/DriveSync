@@ -3,6 +3,7 @@ export const QUERY_SCOPE = {
   DRIVE: "drive",
   FILES: "files",
   ANALYTICS: "analytics",
-  DASHBOARD:"dashboard"
+  DASHBOARD: "dashboard",
+  ACTIVITY: "activity",
 } as const;
 

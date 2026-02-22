@@ -148,6 +148,54 @@ export interface Activity {
   metadata?: Record<string, unknown>;
 }
 
+// Activity Log Types (from backend ActivityLog model)
+export interface PerformanceTiming {
+  label: string;
+  startedAt: number;
+  endedAt?: number;
+  durationMs?: number;
+}
+
+export interface ActivityLog {
+  _id: string;
+  performerId: string;
+  performerType: "User" | "System";
+  performerUsername?: string;
+  performerEmail?: string;
+
+  actionType: string;
+  details?: string;
+
+  targetId?: string;
+  targetType?: string;
+  targetName?: string;
+
+  ipAddress?: string;
+  userAgent?: string;
+
+  status: "success" | "failure" | "pending" | "partial";
+  errorMessage?: string;
+
+  durationMs?: number;
+  timings?: PerformanceTiming[];
+  metadata?: Record<string, unknown>;
+
+  httpMethod?: string;
+  httpPath?: string;
+  httpStatusCode?: number;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActivityLogAggregations {
+  actionCounts: Array<{ _id: string; count: number }>;
+  statusCounts: Array<{ _id: string; count: number }>;
+  avgDurations: Array<{ _id: string; avgDuration: number; minDuration?: number; maxDuration?: number; count: number }>;
+  dailyTrend: Array<{ _id: string; count: number; avgDuration: number; errors?: number }>;
+  topActions: Array<{ _id: string; count: number; avgDuration: number; lastOccurred: string }>;
+}
+
 // Analytics Types
 export interface StorageAnalytics {
   driveId: string;

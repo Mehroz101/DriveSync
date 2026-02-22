@@ -38,7 +38,7 @@ const navItems: NavItem[] = [
   { title: "Trashed", href: "/trashed", icon: Trash2, locked: false },
   { title: "Analytics", href: "/analytics", icon: BarChart3, locked: false },
   { title: "Duplicates", href: "/duplicates", icon: Copy, locked: false },
-  { title: "Activity Log", href: "/activity", icon: Activity, locked: true },
+  { title: "Activity Log", href: "/activity", icon: Activity, locked: false },
   { title: "Settings", href: "/settings", icon: Settings, locked: false },
   // { title: 'API Docs', href: '/api-docs', icon: FileText },
 ];

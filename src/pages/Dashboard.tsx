@@ -4,7 +4,6 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { DrivesSummary } from "@/components/dashboard/DrivesSummary";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
-import { OverlayWrapper } from "@/components/shared/OverlayWrapper";
 import { formatBytes, formatNumber } from "@/lib/formatters";
 import type { DashboardStats, DriveAccount, DuplicateStats } from "@/types";
 import { StatsCard } from "@/components/shared/StatsCard";
@@ -117,14 +116,7 @@ export default function Dashboard() {
       {/* Main Content Grid */}
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         <DrivesSummary drives={drives} />
-        <OverlayWrapper
-          state="coming-soon"
-          size="md"
-          blurContent={true}
-          overlayOpacity="light"
-        >
-          <ActivityFeed />
-        </OverlayWrapper>
+        <ActivityFeed />
       </div>
     </div>
   );
