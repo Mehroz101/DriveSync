@@ -47,7 +47,7 @@ export function TopBar({
 }: TopBarProps) {
   const dispatch = useDispatch<AppDispatch>();
   const isMobile = useIsMobile();
-  const { user } = useAuth();
+  const { user ,logout} = useAuth();
   
   // Get state from Redux
   const { selectedDrives, searchQuery } = useSelector((state: RootState) => state.ui);
@@ -87,6 +87,9 @@ export function TopBar({
       console.error('Failed to refresh drives:', error);
     }
   };
+  const  handleLogout = () =>{
+    logout()
+  } 
   
   useEffect(() => {
     const data = drivesFromQueryArray || syncAlltDrives;
@@ -255,7 +258,7 @@ export function TopBar({
             <DropdownMenuItem>Preferences</DropdownMenuItem>
             <DropdownMenuItem>Billing</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
               Sign Out
             </DropdownMenuItem>
           </DropdownMenuContent>

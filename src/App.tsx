@@ -13,6 +13,7 @@ import Dashboard from "@/pages/Dashboard";
 import NotFound from "@/pages/NotFound";
 import Login from "@/pages/auth/Login";
 import Signup from "@/pages/auth/Signup";
+import AuthCallback from "@/pages/auth/AuthCallback";
 
 // Lazy loaded pages
 const Drives = lazy(() => import("@/pages/Drives"));
@@ -36,6 +37,7 @@ const App = () => (
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
               
               {/* Protected routes */}
               <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
