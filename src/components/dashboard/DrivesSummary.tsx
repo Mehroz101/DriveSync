@@ -48,7 +48,7 @@ export function DrivesSummary({ drives }: DrivesSummaryProps) {
             No drives connected yet
           </p>
           <Button asChild>
-            <Link to="/drives/add" className="gap-2">
+            <Link to="/drives" className="gap-2">
               <Plus className="h-4 w-4" />
               Connect Your First Drive
             </Link>
@@ -168,7 +168,7 @@ export function DrivesSummary({ drives }: DrivesSummaryProps) {
 
           <div className="border-t px-6 py-4">
             <Button variant="outline" className="w-full gap-2" asChild>
-              <Link to="/drives/add">
+              <Link to="/drives">
                 <Plus className="h-4 w-4" />
                 Add New Drive
               </Link>

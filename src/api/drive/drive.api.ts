@@ -73,3 +73,22 @@ export const getAllDriveStats = async (): Promise<DriveStatsResponse> => {
     throw error;
   }
 };
+
+export const removeDriveAccount = async (accountId: string): Promise<void> => {
+  try {
+    await apiClient.delete(`/drive/accounts/${accountId}`);
+  } catch (error) {
+    console.error("Failed to remove drive account:", error);
+    throw error;
+  }
+};
+
+export const syncSingleDrive = async (driveId: string): Promise<DriveAccount> => {
+  try {
+    const response = await apiClient.get(`/drive/sync-drive/${driveId}`);
+    return response.data.data || response.data;
+  } catch (error) {
+    console.error("Failed to sync drive:", error);
+    throw error;
+  }
+};

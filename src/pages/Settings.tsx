@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isAxiosError } from 'axios';
-import { User, Shield, Monitor, HardDrive, Save, Camera, Loader2 } from 'lucide-react';
+import { User, Shield, Monitor, HardDrive, Save, Camera, Loader2, Trash2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDriveAccountStats } from '@/queries/drive/useDriveAccounts';
 import { updateProfile, uploadProfilePicture, changePassword, deleteAccount } from '@/api/profile/profile.api';
 import { useToast } from '@/hooks/use-toast';
+import { useRemoveDrive } from '@/mutations/drive/useRemoveDrive';
+import { useSyncDrive } from '@/mutations/drive/useSyncDrive';
 import type { UserPreferences } from '@/types';
 
 function getErrorMessage(err: unknown): string {
@@ -67,6 +69,12 @@ export default function Settings() {
 
   const { data: drivesResponse } = useDriveAccountStats();
   const drives = drivesResponse?.drives ?? [];
+
+  // Drive management mutations
+  const { mutateAsync: removeDrive } = useRemoveDrive();
+  const { mutateAsync: syncDrive } = useSyncDrive();
+  const [removingDriveId, setRemovingDriveId] = useState<string | null>(null);
+  const [syncingDriveId, setSyncingDriveId] = useState<string | null>(null);
 
   // Profile form
   const [name, setName] = useState(user?.name ?? '');
@@ -190,6 +198,30 @@ export default function Settings() {
     }
   };
 
+  const handleDisconnectDrive = async (accountId: string) => {
+    setRemovingDriveId(accountId);
+    try {
+      await removeDrive(accountId);
+      toast({ title: 'Drive disconnected successfully' });
+    } catch (err) {
+      toast({ title: 'Failed to disconnect drive', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setRemovingDriveId(null);
+    }
+  };
+
+  const handleSyncDrive = async (driveId: string) => {
+    setSyncingDriveId(driveId);
+    try {
+      await syncDrive(driveId);
+      toast({ title: 'Drive synced successfully' });
+    } catch (err) {
+      toast({ title: 'Failed to sync drive', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setSyncingDriveId(null);
+    }
+  };
+
   const initials = user?.name
     ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase()
     : '?';
@@ -210,10 +242,10 @@ export default function Settings() {
             <User className="h-4 w-4" />
             Profile
           </TabsTrigger>
-          {/* <TabsTrigger value="preferences" className="gap-2">
+          <TabsTrigger value="preferences" className="gap-2">
             <Monitor className="h-4 w-4" />
             Preferences
-          </TabsTrigger> */}
+          </TabsTrigger>
           <TabsTrigger value="drives" className="gap-2">
             <HardDrive className="h-4 w-4" />
             Drives
@@ -448,6 +480,30 @@ export default function Settings() {
                         size="sm"
                       />
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleSyncDrive(drive._id)}
+                      disabled={syncingDriveId === drive._id}
+                      title="Sync drive"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${syncingDriveId === drive._id ? 'animate-spin' : ''}`} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => handleDisconnectDrive(drive._id)}
+                      disabled={removingDriveId === drive._id}
+                      title="Disconnect drive"
+                    >
+                      {removingDriveId === drive._id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
               ))}

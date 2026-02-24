@@ -20,6 +20,8 @@ import {
   Home,
   ArrowLeft,
   Send,
+  Files,
+  Loader2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -68,6 +70,7 @@ import { cn } from "@/lib/utils";
 import type { DriveFile, FileType } from "@/types";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useDeleteFiles } from "@/mutations/files/useDeleteFiles";
+import { useDriveFilesSync } from "@/mutations/files/useFilesSync";
 import { DeleteFileDialog } from "@/components/common/deleteDialog";
 import DeleteFileButton from "@/components/common/DeleteFileButton";
 import {
@@ -249,6 +252,7 @@ export default function FilesExplorer() {
   const { data: drivesResponse } = useDriveAccountStats();
   const drives = drivesResponse?.drives ?? [];
   const deleteFilesMutation = useDeleteFiles();
+  const { mutateAsync: syncFiles, isPending: isAutoSyncing } = useDriveFilesSync();
 
   const { refetch: refetchDriveFiles, isLoading: isSyncing } =
     useAllDrivesFilesSync();
@@ -285,6 +289,107 @@ export default function FilesExplorer() {
     }
     return { page, totalPages: 1, totalFiles: 0 };
   }, [data, page]);
+
+  /* ---------- Auto-sync files when none exist ---------- */
+  
+  const [autoSyncAttempted, setAutoSyncAttempted] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    // Only trigger auto-sync when:
+    // 1. Not currently loading
+    // 2. Not in folder mode (main files view)
+    // 3. No files found
+    // 4. Have active drives
+    // 5. Not currently syncing
+    // 6. Not searching or filtering (only on first load)
+    // 7. Haven't attempted auto-sync yet (prevent infinite loops)
+    const shouldAutoSync = 
+      !isLoading && 
+      !isInFolderMode && 
+      files.length === 0 && 
+      drives.length > 0 && 
+      !isAutoSyncing &&
+      !isSyncing &&
+      searchValue === "" &&
+      selectedDrive === "all" &&
+      selectedTypes.length === 0 &&
+      selectedTags.length === 0 &&
+      !autoSyncAttempted;
+
+    const shouldRetrySync = 
+      !isLoading && 
+      !isInFolderMode && 
+      files.length === 0 && 
+      drives.length > 0 && 
+      !isAutoSyncing &&
+      !isSyncing &&
+      autoSyncAttempted &&
+      retryCount < 2; // Allow up to 2 retries
+
+    if (shouldAutoSync) {
+      console.log("Auto-syncing files: No files found in database");
+      setAutoSyncAttempted(true);
+      
+      toast({
+        title: "Syncing your files...",
+        description: "Fetching your drive files for the first time.",
+      });
+
+      syncFiles().then(() => {
+        toast({
+          title: "Files synced successfully",
+          description: "Your drive files have been loaded.",
+        });
+        setRetryCount(0);
+      }).catch((error) => {
+        console.error("Auto-sync failed:", error);
+        if (retryCount < 2) {
+          toast({
+            title: "Retrying sync...",
+            description: `Attempting to sync files again (${retryCount + 1}/2)`,
+          });
+        } else {
+          toast({
+            title: "Sync failed",
+            description: "Unable to load your files. Please try refreshing the page.",
+            variant: "destructive",
+          });
+        }
+      });
+    } else if (shouldRetrySync) {
+      const delay = (retryCount + 1) * 3000; // 3s, 6s delays
+      
+      setTimeout(() => {
+        console.log(`Retrying file sync (attempt ${retryCount + 1}/2)`);
+        setRetryCount(prev => prev + 1);
+        
+        syncFiles().then(() => {
+          toast({
+            title: "Files synced successfully",
+            description: "Your drive files have been loaded.",
+          });
+        }).catch((error) => {
+          console.error(`Retry ${retryCount + 1} failed:`, error);
+        });
+      }, delay);
+    }
+  }, [
+    isLoading, 
+    isInFolderMode, 
+    files.length, 
+    drives.length, 
+    isAutoSyncing, 
+    isSyncing, 
+    searchValue, 
+    selectedDrive, 
+    selectedTypes.length, 
+    selectedTags.length,
+    autoSyncAttempted,
+    retryCount,
+    syncFiles,
+    toast
+  ]);
 
   /* ---------- Client Filters ---------- */
 
@@ -435,13 +540,27 @@ export default function FilesExplorer() {
       />
       <Button
         className="gap-2"
-        disabled={isSyncing}
-        onClick={() => refetchDriveFiles()}
+        disabled={isSyncing || isAutoSyncing}
+        onClick={async () => {
+          try {
+            await syncFiles();
+            toast({
+              title: "Files synced successfully",
+              description: "Your drive files have been updated.",
+            });
+          } catch (error) {
+            toast({
+              title: "Sync failed",
+              description: "Unable to sync files. Please try again.",
+              variant: "destructive",
+            });
+          }
+        }}
       >
             <RefreshCw
-              className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`}
+              className={`h-4 w-4 ${(isSyncing || isAutoSyncing) ? "animate-spin" : ""}`}
             />
-            Sync Files
+            {isAutoSyncing ? "Auto-syncing..." : "Sync Files"}
           </Button>
         </div>
       </div>
@@ -632,6 +751,70 @@ export default function FilesExplorer() {
 
       {isLoading ? (
         <SkeletonTable rows={5} />
+      ) : files.length === 0 ? (
+        /* ---------- EMPTY STATE ---------- */
+        <div className="text-center py-12">
+          <Files className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          {isAutoSyncing ? (
+            <>
+              <h3 className="text-lg font-medium mb-2">Loading your files...</h3>
+              <p className="text-muted-foreground mb-4">
+                We're syncing your drive files for the first time. This may take a moment.
+              </p>
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Syncing files from {drives.length} drive{drives.length !== 1 ? 's' : ''}...
+              </div>
+            </>
+          ) : hasActiveFilters ? (
+            <>
+              <h3 className="text-lg font-medium mb-2">No files match your filters</h3>
+              <p className="text-muted-foreground mb-4">
+                Try adjusting your search terms or filters to find more files.
+              </p>
+              <Button onClick={clearAllFilters} variant="outline">
+                Clear all filters
+              </Button>
+            </>
+          ) : drives.length === 0 ? (
+            <>
+              <h3 className="text-lg font-medium mb-2">No drives connected</h3>
+              <p className="text-muted-foreground mb-4">
+                Connect your Google Drive to start exploring your files.
+              </p>
+              <Button onClick={() => window.location.href = '/drives'} variant="outline">
+                Connect Drive
+              </Button>
+            </>
+          ) : (
+            <>
+              <h3 className="text-lg font-medium mb-2">No files found</h3>
+              <p className="text-muted-foreground mb-4">
+                {autoSyncAttempted 
+                  ? "We couldn't find any files in your connected drives."
+                  : "Your file data is being loaded in the background."
+                }
+              </p>
+              <Button 
+                onClick={() => syncFiles()} 
+                variant="outline"
+                disabled={isAutoSyncing || isSyncing}
+              >
+                {isAutoSyncing || isSyncing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Sync Files
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+        </div>
       ) : viewMode === "list" ? (
         /* ---------- TABLE VIEW ---------- */
         <div className="border rounded-xl overflow-hidden overflow-x-auto">

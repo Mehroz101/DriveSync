@@ -36,12 +36,12 @@ export default function Login() {
     setLoading(true);
     
     try {
+      // Google login redirects to OAuth flow, no need to navigate here
       await loginWithGoogle();
-      navigate('/');
+      // The OAuth flow will handle the redirect after successful authentication
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during Google login');
-    } finally {
-      setLoading(false);
+      setLoading(false); // Only reset loading on error
     }
   };
 
@@ -123,16 +123,16 @@ export default function Login() {
               </div>
             </form>
             
-            {/* <div className="relative my-6">
+            <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
               </div>
-            </div> */}
+            </div>
             
-            {/* <Button
+            <Button
               variant="outline"
               className="w-full"
               onClick={handleGoogleLogin}
@@ -149,7 +149,7 @@ export default function Login() {
                   Sign in with Google
                 </>
               )}
-            </Button> */}
+            </Button>
           </CardContent>
           <CardFooter className="flex flex-col">
             <p className="text-center text-sm text-muted-foreground">

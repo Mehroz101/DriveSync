@@ -136,7 +136,7 @@ export default function ActivityLog() {
             <SelectContent>
               <SelectItem value="all">All Drives</SelectItem>
               {drives.map((drive) => (
-                <SelectItem key={drive.id} value={drive.id}>
+                <SelectItem key={drive._id} value={drive._id}>
                   {drive.name}
                 </SelectItem>
               ))}

@@ -16,6 +16,7 @@ interface AuthContextType {
   signup: (name: string, email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => void;
+  checkAuthStatus: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -46,6 +47,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(response.data.data || response.data);
     } catch (error) {
       console.error("Failed to check auth status:", error);
+      // Clear invalid token
+      localStorage.removeItem("token");
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -63,23 +67,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Fetch full profile to ensure all user data is loaded
         await checkAuthStatus();
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Login failed:", error);
-      throw new Error(error);
+      
+      // Extract proper error message
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { message?: string; error?: string; success?: boolean } } };
+        // Backend returns errors in format: {"success": false, "error": "message"}
+        if (axiosError.response?.data?.error) {
+          errorMessage = axiosError.response.data.error;
+        } else if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      throw new Error(errorMessage);
     }
-    // Simulate API call
-    // await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // // For demo purposes, we'll use the mock user if credentials match
-    // if (email === 'test@gmail.com' && password === '12345678') {
-    //   const response = await getCurrentUser();
-    //   if (response.success) {
-    //     setUser(response.data);
-    //     localStorage.setItem('authToken', 'demo-token');
-    //   }
-    // } else {
-    //   throw new Error('Invalid credentials');
-    // }
   };
 
   const signup = async (name: string, email: string, password: string) => {
@@ -95,26 +102,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Fetch full profile to ensure all user data is loaded
         await checkAuthStatus();
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Signup failed:", error);
-      throw new Error(error);
+      
+      // Extract proper error message
+      let errorMessage = 'Signup failed. Please try again.';
+      
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { message?: string; error?: string; success?: boolean } } };
+        // Backend returns errors in format: {"success": false, "error": "message"}
+        if (axiosError.response?.data?.error) {
+          errorMessage = axiosError.response.data.error;
+        } else if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      throw new Error(errorMessage);
     }
   };
 
   const loginWithGoogle = async () => {
-    // Simulate Google login
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    const response = await getCurrentUser();
-    if (response.success) {
-      setUser(response.data);
-      localStorage.setItem("authToken", "demo-token");
-    }
+    // Redirect to backend Google OAuth flow
+    const apiBaseUrl =
+      import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
+    window.location.href = `${apiBaseUrl}/auth/google`;
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("authToken");
+    localStorage.removeItem("token");
   };
 
   const value = {
@@ -124,6 +143,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signup,
     loginWithGoogle,
     logout,
+    checkAuthStatus,
     isAuthenticated: !!user,
   };
 

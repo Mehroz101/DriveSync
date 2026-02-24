@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Plus,
   RefreshCw,
@@ -41,47 +42,122 @@ import type { Drive } from "@/types";
 import AddDriveDialog from "@/components/dashboard/AddDriveDialog";
 import { useDriveAccountStats } from "@/queries/drive/useDriveAccounts";
 import { useReconnectDrive } from "@/mutations/drive/useReconnectDrive";
+import { useRemoveDrive } from "@/mutations/drive/useRemoveDrive";
+import { useSyncDrive } from "@/mutations/drive/useSyncDrive";
+import { useSyncAllDrives } from "@/mutations/drive/useSyncAllDrives";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Drives() {
-  // const [drives, setDrives] = useState<Drive[]>([]);
   const [refreshingDrive, setRefreshingDrive] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const { data: drivesResponse, isLoading } = useDriveAccountStats();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { data: drivesResponse, isLoading, refetch } = useDriveAccountStats();
   const drives = drivesResponse?.drives || [];
+  const [retryCount, setRetryCount] = useState(0);
+  const [showingRetryMessage, setShowingRetryMessage] = useState(false);
 
   const { mutateAsync } = useReconnectDrive();
+  const { mutateAsync: removeDrive } = useRemoveDrive();
+  const { mutateAsync: syncDrive, isPending: isSyncingDrive } = useSyncDrive();
+  const { mutateAsync: syncAllDrives, isPending: isSyncingAll } = useSyncAllDrives();
+  const { toast } = useToast();
+
+  // Auto-retry logic for new users who might not have drive data yet
+  useEffect(() => {
+    const hasNoDrives = !isLoading && drives.length === 0;
+    const shouldRetry = hasNoDrives && retryCount < 3;
+    
+    if (shouldRetry) {
+      const timeouts = [2000, 4000, 6000]; // Retry after 2s, 4s, 6s
+      const delay = timeouts[retryCount];
+      
+      setShowingRetryMessage(true);
+      console.log(`Drives: No drives found, retrying in ${delay}ms (attempt ${retryCount + 1}/3)`);
+      
+      const timer = setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        setShowingRetryMessage(false);
+        refetch();
+      }, delay);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, drives.length, retryCount, refetch]);
+
+  // Handle error parameters from URL
+  useEffect(() => {
+    const error = searchParams.get('error');
+    const message = searchParams.get('message');
+    
+    if (error) {
+      const errorMessages: { [key: string]: string } = {
+        'drive_conflict': 'This Google Drive is already linked to another user account.',
+        'unauthorized': 'You do not have permission to perform this action.',
+        'drive_add_failed': 'Failed to add the drive account.',
+        'oauth_failed': 'Google OAuth authentication failed.',
+      };
+      
+      const displayMessage = message ? decodeURIComponent(message) : errorMessages[error] || 'An error occurred.';
+      
+      toast({
+        title: "Drive Connection Error", 
+        description: displayMessage,
+        variant: "destructive"
+      });
+      
+      // Clear error parameters from URL
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('error');
+      newSearchParams.delete('message');
+      setSearchParams(newSearchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, toast]);
+
   const handleAddDrive = async (driveId: string) => {
     try {
       const response = await mutateAsync(driveId);
 
-      // If your mutation returns nothing, remove the following lines.
-      // If it should return an object with authUrl, ensure your mutation is set up to do so.
-      // Example fallback: fetch authUrl from another source or show an error.
       if (!response || typeof response !== "object" || !("authUrl" in response)) {
         throw new Error("Missing OAuth URL");
       }
       const { authUrl } = response as { authUrl: string };
 
-      // 🔐 Full redirect to backend OAuth flow
       window.location.href = authUrl;
     } catch (error) {
       console.error("Add Drive failed:", error);
       alert("Unable to connect Google Drive. Please try again.");
     }
   };
-  // const handleRefreshDrive = async (driveId: string) => {
-  //   setRefreshingDrive(driveId);
-  //   const response = await refreshDrive(driveId);
-  //   if (response.success && drivesResponse) {
-  //     // Update the accounts array with the refreshed drive
-  //     const updatedAccounts = drivesResponse.accounts.map((d) => 
-  //       d._id === driveId ? response.data : d
-  //     );
-  //     // Create new response object with updated accounts
-  //     // We can't directly update the query cache here, so we'll need to refetch
-  //   }
-  //   setRefreshingDrive(null);
-  // };
+
+  const handleRefreshDrive = async (driveId: string) => {
+    setRefreshingDrive(driveId);
+    try {
+      await syncDrive(driveId);
+      toast({ title: "Drive synced successfully" });
+    } catch (error) {
+      toast({ title: "Failed to sync drive", variant: "destructive" });
+    } finally {
+      setRefreshingDrive(null);
+    }
+  };
+
+  const handleRemoveDrive = async (accountId: string) => {
+    try {
+      await removeDrive(accountId);
+      toast({ title: "Drive removed successfully" });
+    } catch (error) {
+      toast({ title: "Failed to remove drive", variant: "destructive" });
+    }
+  };
+
+  const handleSyncAll = async () => {
+    try {
+      await syncAllDrives();
+      toast({ title: "All drives synced successfully" });
+    } catch (error) {
+      toast({ title: "Failed to sync all drives", variant: "destructive" });
+    }
+  };
 
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
@@ -95,53 +171,21 @@ export default function Drives() {
             Manage your Google Drive accounts.
           </p>
         </div>
-        <AddDriveDialog
-          isAddDialogOpen={isAddDialogOpen}
-          setIsAddDialogOpen={setIsAddDialogOpen}
-        />
-        {/* <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 w-full sm:w-auto">
-              <Plus className="h-4 w-4" />
-              Add Drive
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Connect Google Drive</DialogTitle>
-              <DialogDescription>
-                Sign in with your Google account to connect a new Drive.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col items-center gap-4 py-8">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted">
-                <svg viewBox="0 0 87.3 78" className="h-10 w-10">
-                  <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-                  <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
-                  <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-                  <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-                  <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-                  <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-                </svg>
-              </div>
-              <div className="text-center">
-                <p className="font-medium">Google Drive OAuth</p>
-                <p className="text-sm text-muted-foreground">
-                  Click below to authorize access to your Drive
-                </p>
-              </div>
-              <Button className="gap-2 gradient-primary">
-                <ExternalLink className="h-4 w-4" />
-                Sign in with Google
-              </Button>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                Cancel
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog> */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={handleSyncAll}
+            disabled={isSyncingAll || drives.length === 0}
+          >
+            <RefreshCw className={cn("h-4 w-4", isSyncingAll && "animate-spin")} />
+            Sync All
+          </Button>
+          <AddDriveDialog
+            isAddDialogOpen={isAddDialogOpen}
+            setIsAddDialogOpen={setIsAddDialogOpen}
+          />
+        </div>
       </div>
 
       {/* Drives Grid */}
@@ -194,7 +238,7 @@ export default function Drives() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
                       className="gap-2"
-                      onClick={() => handleAddDrive(drive._id)}
+                      onClick={() => handleRefreshDrive(drive._id)}
                       disabled={refreshingDrive === drive._id}
                     >
                       <RefreshCw
@@ -210,7 +254,10 @@ export default function Drives() {
                       Settings
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="gap-2 text-destructive">
+                    <DropdownMenuItem
+                      className="gap-2 text-destructive"
+                      onClick={() => handleRemoveDrive(drive._id)}
+                    >
                       <Trash2 className="h-4 w-4" />
                       Remove Drive
                     </DropdownMenuItem>
